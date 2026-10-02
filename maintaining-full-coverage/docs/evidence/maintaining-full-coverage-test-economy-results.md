@@ -47,6 +47,7 @@ character. Two configurations:
 | 20 full-stack RED reps 1-2 | yes | re-watched red by reverting the parser | no | Driven by the existing `writing-tests` checklist item 7 |
 | 20 full-stack GREEN reps 1-2 | yes | break-the-line probe | yes | Cited step 6 and the step 9 delta |
 | 21 gate-only RED | n/a | mental mutation only | no | Deleted the dead handler and the test-only helper; added three unrequested cases; case id carried no issue reference |
+| 21 full-stack RED | n/a | mental mutation, collect-only id diff | no | Deleted the dead handler, the test-only helper and the bug-pinning test (offered as a separate commit); two new cases, neither id carried the issue reference |
 | 21 gate-only GREEN | n/a | coverage at three decimals plus probes | yes | Issue-tagged case in the existing parametrize; deleted the dead handler in the function it changed; left the out-of-scope helper and reported it |
 | 21 full-stack GREEN | n/a | probe | yes | Issue-tagged case; deleted handler, helper and the bug-pinning private test (run before the scope rule was added) |
 
@@ -56,7 +57,7 @@ this scenario. The measurable differences are that consolidation became a
 required step instead of a discretionary one, the proof became an executed
 break-the-line probe instead of a mental one, the test delta was stated against
 the base in every revised run and in no baseline run, and the regression guard
-carried its issue reference. Neither baseline for scenario 21 mocked the
+carried its issue reference. No baseline run for scenario 21 mocked the
 impossible error, so the "mock harder" rewording is supported by reasoning
 rather than by an observed failure.
 
@@ -74,5 +75,4 @@ Friction reported by the GREEN agents and closed in `writing-tests`:
   reported or filed, not swept into an unrelated change (the gate-only GREEN run
   for scenario 21 followed this).
 
-Not re-run after the refactor round: the full-stack scenario 21. The full-stack
-RED run for scenario 21 never delivered its answer, so that cell has no data.
+Not re-run after the refactor round: the full-stack scenario 21.
