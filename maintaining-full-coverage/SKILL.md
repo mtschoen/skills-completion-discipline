@@ -1,9 +1,16 @@
 ---
 name: maintaining-full-coverage
-description: "Use when: user mentions coverage, lint, linter, static analysis, code quality checks, 100% coverage, coverage gate, lint baseline, test report, TEST-REPORT.md, or 'is the build clean'; BEFORE declaring work done, summarizing what you built, or saying 'all passing/working/done/clean'; BEFORE committing or pushing; completing any feature/bugfix/refactor in a project that tracks test coverage OR has linters/analyzers configured (ruff, eslint, mypy, clang-tidy, jbinspect/inspectcode, golangci-lint, Roslyn analyzers, etc.); establishing coverage or lint tracking for a new project. If you wrote or changed production code, this skill applies - no exceptions (the Three Modes inside calibrate what the bar means for projects with pre-existing debt)."
+description: "Use when: user mentions coverage, lint, linter, static analysis, code quality checks, 100% coverage, coverage gate, lint baseline, test report, TEST-REPORT.md, or 'is the build clean'; BEFORE declaring work done, summarizing what you built, or saying 'all passing/working/done/clean'; BEFORE committing or pushing; completing any feature/bugfix/refactor in a project that tracks test coverage OR has linters/analyzers configured (ruff, eslint, mypy, clang-tidy, jbinspect/inspectcode, golangci-lint, Roslyn analyzers, etc.); establishing coverage or lint tracking for a new project. If you wrote or changed production code, this skill applies - no exceptions (the Three Modes inside calibrate what the bar means for projects with pre-existing debt). TEST-REPORT.md is a single factual snapshot: no narrative."
 ---
 
 # Maintaining Full Coverage
+
+**Report contract:** `TEST-REPORT.md` is one current factual snapshot: status,
+mode, git revision, test counts, coverage, lint findings, exclusions and commands.
+Replace the previous snapshot; never append a session summary, implementation
+narrative or handoff instructions. Put change explanations in the PR body or commit
+message. Read the full skill before applying the gate, and follow explicit user
+instructions and repository policy for the report's generation and Git disposition.
 
 ## Overview
 
