@@ -16,7 +16,9 @@ instructions and repository policy for the report's generation and Git dispositi
 
 If the coverage report doesn't say 100% - or the linter has findings - you're not done. *(Unless the project never reached that bar and your current task isn't to get it there. Which of those you're in changes what "done" means - see Three Modes below.)*
 
-**Core principle:** Every line of production code must be (a) exercised by a test and (b) clean against every linter/analyzer the project has configured. Uncovered lines are either untested (write a test) or unreachable (delete them). Lint findings are either real (fix them, ideally by restructuring) or genuine false positives (suppress per-case with explicit approval).
+**Core principle:** Every line of production code must be (a) exercised by a test and (b) clean against every linter/analyzer the project has configured. An uncovered line is unneeded (delete it), reachable by a test that already exists (widen that test), or genuinely untested (add a case; a new test function comes last). Lint findings are either real (fix them, ideally by restructuring) or genuine false positives (suppress per-case with explicit approval).
+
+**Coverage is the bar; test count is a cost.** Hold coverage at 100%, optimize for what the suite costs to run and maintain, and report the count. 100% is reachable with a small suite; it is usually reached with a large one because every red line was answered with its own test function. This skill decides whether you may stop. **REQUIRED SUB-SKILL:** `writing-tests` decides HOW a line gets covered and how the tests you added are consolidated - use it whenever this gate has you add, change, or remove a test.
 
 **Tests are not the only validators.** "Coverage" here means *covering the code with every check the project has* - tests for behavior, linters and analyzers for structure, type checkers for types. They're the same shape in the completion gate: machine-verifiable checked properties that must report clean before you declare done. Run them all, gate on all of them, restructure rather than suppress.
 
@@ -26,13 +28,14 @@ If the coverage report doesn't say 100% - or the linter has findings - you're no
 
 **Violating the letter of this rule is violating the spirit of this rule.**
 
-This skill is the last of a three-skill testing-discipline lineage:
+This skill is the last of a four-skill testing-discipline lineage:
 
-1. `test-driven-development` - writes tests before code
-2. `verification-before-completion` - proves tests pass with evidence
-3. `maintaining-full-coverage` - proves every line is covered AND every analyzer reports clean, and the report is updated
+1. `test-driven-development` - a failing test before the code
+2. `writing-tests` - what shape that test takes and which existing test it belongs in
+3. `verification-before-completion` - proves tests pass with evidence
+4. `maintaining-full-coverage` - proves every line is covered AND every analyzer reports clean, the new tests are consolidated, and the report is updated
 
-TDD is upstream discipline. Verification is evidence. This skill is the metric gate. When several completion skills are in play, the order is: this skill's gate (tests / lint / coverage) -> smoke-test -> docs-update -> declare done / commit.
+TDD is upstream discipline. Writing-tests is the craft. Verification is evidence. This skill is the metric gate. When several completion skills are in play, the order is: this skill's gate (tests / lint / coverage) -> smoke-test -> docs-update -> declare done / commit.
 
 ## Three Modes: what "the bar" means here
 
@@ -64,10 +67,10 @@ The report file records which mode applied and the baseline it measured against 
 
 **Always:** completing a feature, bugfix, or refactor; setting up coverage tracking for a new project; reviewing whether work is ready to commit.
 
-**The test you wrote passing is not the finish line. 100% suite-wide coverage is the finish line** - in a project at or chasing that bar. In a below-bar project where coverage cleanup isn't the task, the finish line is: your new code covered, the baseline not regressed (see Three Modes).
+**The test you wrote passing is not the finish line. 100% suite-wide coverage, reached at the lowest honest cost, is the finish line** - in a project at or chasing that bar. In a below-bar project where coverage cleanup isn't the task, the finish line is: your new code covered, the baseline not regressed (see Three Modes). In every mode the tests you added are consolidated before you stop.
 
 **Throughout development (the nudge):**
-While coding, periodically ask yourself: "If I ran coverage right now, would the code I just wrote be covered?" Every `if` has at least two paths. Every `try` has an `except`. Every early `return` has a condition that triggers it. Are both branches tested?
+While coding, periodically ask yourself: "If I ran coverage right now, would the code I just wrote be covered?" Every `if` has at least two paths. Every `try` has an `except`. Every early `return` has a condition that triggers it. For each path ask two things, in this order: does production need it, and does a test reach it through the behavior's own entry point? A path nothing needs (both branches do the same thing, the `except` guards code that cannot raise) is deleted, not tested.
 
 Don't batch all test-writing to the end. Write tests alongside code. Coverage debt compounds.
 
@@ -111,26 +114,60 @@ BEFORE claiming completion:
    - NO  -> enter the Escalation Ladder below.
            Do NOT claim completion. Do NOT skip to exclusions or
            suppressions.
-6. WRITE or UPDATE `TEST-REPORT.md` at the repo root (format below),
+6. CONSOLIDATE the tests this change added (the Consolidation Pass
+   below). Meeting the bar is not the stopping point; meeting it at the
+   lowest honest cost is. If the pass changed anything, repeat steps 3-5.
+7. WRITE or UPDATE `TEST-REPORT.md` at the repo root (format below),
    including the Lint section when any linter is configured. The report
    is a REQUIRED artifact - current git hash, test count, coverage
    numbers, per-tool findings.
-7. APPLY the repository's policy for `TEST-REPORT.md`. Check explicit user
+8. APPLY the repository's policy for `TEST-REPORT.md`. Check explicit user
    instructions for the current task, then AGENTS.md, CI and
    repository documentation. This skill neither requires nor forbids staging
    or committing the report.
-8. ONLY after the report is written and the repository policy is applied: done.
+9. STATE the test delta in the completion message and the PR body:
+   net-new test functions, net-new cases, test-line delta, measured
+   against the change's base.
+10. ONLY after the report is written, the repository policy is applied,
+    and the delta is stated: done.
 ```
 
 Step 5 is written for Maintain and Close-the-Gap mode. In Best-Effort mode the test is different: *did I cover and clean the code I touched, and did I hold the baseline?* If yes, you're done for this task even though the absolute numbers are off the bar - record the baseline in the report (mode `best-effort`) and surface the remaining gap. Pre-existing findings in Maintain / Close-the-Gap count in full: 1000 inherited ruff warnings enter the Escalation Ladder the same way uncovered branches do.
+
+## The Consolidation Pass
+
+Gate step 6. It runs once the bar is met, over the tests this change added, in every mode. It is part of the gate, not optional cleanup: five green tests that differ by one literal are unfinished work, however green.
+
+**REQUIRED SUB-SKILL:** `writing-tests` owns the pass - the moves, the limits that stop it producing omnibus tests, and the worked cases ("The consolidation pass"; `references/coverage-without-bloat.md` there). In outline:
+
+| What you see in the tests you added | Move |
+|-------------------------------------|------|
+| Same path, different input | cases of one parametrized test, in the existing neighbor if there is one |
+| Same act as an existing test, another fact about the outcome | add the assertion to that test |
+| Asserts only that a mock was called | rewrite to assert the outcome, or drop it |
+| Imports a private helper | move the check to the caller's entry point |
+| Reaches production code nothing else calls | delete the code and the test |
+
+Then prove nothing was lost, with the `writing-tests` safe-deletion checks: coverage of the touched modules unchanged at three decimals, and each surviving case goes red when you break the line it guards. "Coverage did not drop" alone is never the proof.
+
+"Nothing to consolidate" is a common, valid result - say so in the completion message, so the reader knows the pass ran. There is no cap on test count, because a cap produces omnibus tests; the pass has limits instead (one act per test id, one assertion template per parametrize, golden and contract values never collapsed, a regression case keeps its issue reference).
+
+Step 9's delta - net-new test functions, net-new cases, test-line delta - goes in the completion message and PR body, not in `TEST-REPORT.md`. Fewer test lines with coverage held is a good outcome, and a reviewer should read a negative delta as one.
 
 ## The Escalation Ladder
 
 When the gate fails (coverage <100% or any lint finding), follow this order. **Never skip steps.**
 
-**Step 1 - Write tests / fix findings.** Most uncovered lines are straightforwardly testable; most findings are straightforwardly fixable. Just do it.
+**Step 1 - Cover it the cheapest honest way / fix findings.** Most findings are straightforwardly fixable; just do it. Most uncovered lines are straightforwardly coverable, and the `writing-tests` authoring order says how. Take the first that applies:
 
-**Step 2 - Heroic testing / restructuring.** Mock OS calls, simulate errors, use framework features creatively (see Heroic Coverage Scenarios). For findings, restructure the code so the analyzer's premise no longer holds (see Restructure Over Exclude). 100% / 0 is almost always achievable.
+1. Should the line exist? If only a test would reach it, delete it and any test that exists only for it.
+2. Widen the nearest existing test: one more assertion, or one more parametrize case.
+3. Add a new case.
+4. Only then, a new test function.
+
+A red line is not an order for a new test function. And red-to-green needs a failing assertion, not a new function: a case that fails before the change satisfies test-first, and a bug fix is guarded by a case whose id carries the issue reference.
+
+**Step 2 - Heroic testing / restructuring.** Simulate the failure at the real external boundary, mock OS calls, use framework features creatively (see Heroic Coverage Scenarios). For findings, restructure the code so the analyzer's premise no longer holds (see Restructure Over Exclude). 100% / 0 is almost always achievable.
 
 **Step 3 - Ask the human.** If you genuinely cannot cover a line or clear a finding, ask. Do not guess. Likely outcomes: the code is unreachable/dead -> **delete it** (dead code is a bug, not an exception); or the human knows a testing trick -> apply it.
 
@@ -188,7 +225,7 @@ Exclusion is correct for genuinely-untestable framework bindings - Android `Medi
 
 ## Report File Convention
 
-Every project maintains an up-to-date coverage report at the repo root, named `TEST-REPORT.md` by default. Writing it is a required artifact of every gate run (step 6 above), not an optional extra: take the current git short hash (`git rev-parse --short HEAD`), the test counts, and the coverage and lint numbers straight from the run you just did, and overwrite the file with the skeleton below. The rules it has to satisfy are the **Report file rules** at the end of this section.
+Every project maintains an up-to-date coverage report at the repo root, named `TEST-REPORT.md` by default. Writing it is a required artifact of every gate run (step 7 above), not an optional extra: take the current git short hash (`git rev-parse --short HEAD`), the test counts, and the coverage and lint numbers straight from the run you just did, and overwrite the file with the skeleton below. The rules it has to satisfy are the **Report file rules** at the end of this section.
 
 ### Minimal required format
 
@@ -277,30 +314,35 @@ memory or notes system, if the environment has one - not the report.
 
 ## Heroic Coverage Scenarios
 
-100% is almost always achievable. These patterns prove it.
+100% is almost always achievable. These patterns prove it - for lines production needs. Heroics come after the question "should this line exist?", never instead of it, and the test they produce still follows the `writing-tests` authoring order (usually one more case in a neighboring test).
 
 - **OS/platform-specific code:** mock `platform.system()`, `Path.read_text()` with `PurePosixPath` comparison, `os.execv()`. Test both branches even on one OS.
-- **Error paths requiring external failures:** mock the dependency - database errors, network timeouts, permission denied. The error handler exists because it can happen. Simulate it.
+- **Error paths requiring external failures:** simulate the failure at the external boundary - database errors, network timeouts, permission denied. If the dependency can fail that way in production, simulate it. If the guarded code cannot raise that error at all, the handler is dead: delete it rather than mocking the error into existence.
 - **Elevated/admin-only code paths:** mock the privilege check to test both paths. For things that genuinely cannot be mocked (e.g., UAC prompts), interactive tests are an option: show an instructional dialog ahead of the system prompt ("you should say yes to this one") so the human knows what to do during the test run.
 - **Browser/integration coverage:** Puppeteer/Playwright tests hitting every route and handler. UI audit scripts tracking which pages, functions, and handlers are exercised.
 - **Startup/shutdown code:** test initialization with mocked dependencies; trigger cleanup/teardown paths explicitly.
 
-If you think a line is untestable, you are probably wrong. Mock harder, simulate the condition, or ask the human - they may know a trick, or the code might be dead and should be deleted.
+If you think a line is untestable, you are probably wrong - about one of two things. Either the condition can be simulated at a real boundary (do that), or the line cannot happen in production (delete it). When you cannot tell which, ask the human - they may know a trick, or confirm the code is dead.
 
 ## Rationalization Table
 
 | Excuse | Reality |
 |--------|---------|
 | "That line is unreachable" | Then delete it. Dead code is a bug, not an exception. |
-| "It's just error handling / platform-specific code" | Error handlers exist because errors happen; platform checks have two branches. Mock the error, mock the platform, test both. |
-| "Coverage is 98%, close enough" | 98% means uncovered lines. Find them. Test them. |
+| "It's just error handling / platform-specific code" | If the error can happen or the platform ships, simulate it at the real boundary and cover both. If the error cannot happen, delete the handler. |
+| "Coverage is 98%, close enough" | 98% means uncovered lines. Find them. For each: delete it if nothing needs it, otherwise cover it through the nearest existing test. |
 | "I'll add tests later" | Later never comes. The gate is now. |
-| "This is just config/glue code" | Config can break. Glue can fail. Test it. |
+| "This is just config/glue code" | Config can break. Glue can fail. Cover it through the entry point that uses it - usually an existing test widened, not a test of the glue alone. |
+| "Each uncovered line needs its own test" | Read the report as a map: a cluster of red lines is usually one untested path. One case through the front door, in a test that already exists, is the default. |
+| "Coverage is 100% and everything is green - done" | Step 6 is not optional. Look back over the tests you added and fold them. The bar is met; the cost is not yet settled. |
+| "The user is waiting / consolidating can be a follow-up" | Follow-up consolidation does not happen; that is how a suite doubles in six weeks. The pass over your own fresh tests takes minutes. |
+| "Folding tests risks losing coverage, so leaving them is safer" | The pass ends with a proof: coverage unchanged, surviving case red when its line breaks. Unfolded near-duplicates are permanent cost with no added signal. |
+| "Test-first means a new test function per behavior or per fix" | It means a failing assertion first. A new parametrize case that fails before the change is a failing test; an issue-tagged case is the regression test. |
 | "The framework makes this untestable" | Ask the human. They may know a trick, or the code should be restructured. |
 | "Adding `pragma: no cover` is faster / asking takes longer" | Exclusions require human approval. If you can fix it, fix it. If you can't, ask - don't reach for pragma instead of asking. |
 | "I'll update the report file after" | The report is a required artifact. Update it now; its Git disposition is a separate repository-policy decision. |
 | "The report must always be committed" / "The report must never be committed" | Neither rule comes from this skill. Follow explicit user and repository policy for tracking, staging, and commits. |
-| "Both branches do the same thing, testing one is enough" | The coverage tool disagrees. Test both. |
+| "Both branches do the same thing, testing one is enough" / "...so I'll test both" | Neither. If both branches do the same thing, the conditional is the defect: collapse it. The same goes for a defensive branch nothing can trigger. |
 | "The C++/JS/other-language code is a separate concern" / "I got 100% on the main language" | 100% of ONE language is not 100%. Every language in the repo needs its own coverage and lint tooling. |
 | "It's just a lint warning / a false positive" | Often the linter found something you missed - investigate before suppressing. Real false positives get restructured around or per-case suppressed with approval, never mass-suppressed. |
 | "Lint debt is pre-existing, not my problem" | Depends on mode. Maintain / close-the-gap: it's your problem - enter the Escalation Ladder. Best-effort: don't add to it, don't let the count grow, record + surface the baseline. |
@@ -316,8 +358,12 @@ If you think a line is untestable, you are probably wrong. Mock harder, simulate
 - Treating `TEST-REPORT.md` as optional, or claiming completion without updating it
 - Inventing or overriding a `TEST-REPORT.md` commit policy instead of following explicit user and repository instructions
 - Skipping straight to step 4 or 5 of the escalation ladder
-- Writing tests that cover the line but don't test meaningful behavior
-- Forgetting to test both branches of a conditional
+- Writing tests that cover the line but don't test meaningful behavior - delete the test, then either cover the line through a behavior test that already exists or delete the line (`writing-tests`: the tick test)
+- Leaving a branch production needs unreached - or testing both branches of a conditional whose branches do the same thing
+- Adding a test function for a line an existing test could reach with one more case
+- Mocking a collaborator to raise an error it cannot raise in production, to turn a handler green
+- Keeping production code whose only callers are tests
+- Declaring done with new tests that differ from each other by one literal, or without stating the test delta
 - Declaring 100% coverage or "lint clean" when you only checked one language in a multi-language repo
 - Declaring "lint clean" without actually running the linter
 - Skipping the lint gate because "the project doesn't lint" without verifying via project config / CI

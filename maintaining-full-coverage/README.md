@@ -14,9 +14,10 @@ When loaded, this skill enforces a completion gate on production code:
    - **Close the gap** - reaching 100% coverage and 0 findings IS the task; the same strict bar applies to every uncovered line and every finding.
    - **Best effort** - the project is dirty and the task is a feature, bugfix, or refactor elsewhere. The bar becomes a ratchet: cover and clean what you touch, don't let coverage fall or findings rise versus the prior report, and surface pre-existing debt instead of silently inheriting it.
 3. **A required report file** records verification evidence only - status, mode, counts, coverage, lint findings, exclusions; explicit current-task user instructions, then repository policy, decide whether it is tracked, staged, or committed.
-4. **A strict escalation ladder** when either gate fails: write tests / fix findings, heroic testing / restructuring, ask the human, framework exclusions (with approval), documented exceptions (last resort).
+4. **A strict escalation ladder** when either gate fails: cover the line the cheapest honest way / fix findings, heroic testing / restructuring, ask the human, framework exclusions (with approval), documented exceptions (last resort).
+5. **A consolidation pass** once the bar is met: the tests the change added are folded into cases, merged into existing tests that perform the same act, or deleted along with production code only they reach, and the test delta is stated with the completion claim. Coverage is the bar; test count is a cost.
 
-The skill layers on top of `test-driven-development` (write tests first) and `verification-before-completion` (prove tests pass). This skill closes the loop on the metric.
+The skill layers on top of `test-driven-development` (a failing test first), `writing-tests` (how a line gets covered, and the consolidation pass itself) and `verification-before-completion` (prove tests pass). This skill closes the loop on the metric.
 
 ## Install
 
@@ -58,8 +59,8 @@ Projects declare the command that generates this file and its location in their 
 
 When coverage is below 100% or a linter has findings:
 
-1. **Write tests / fix findings** -- most uncovered lines and findings are straightforwardly resolvable
-2. **Heroic testing / restructuring** -- mock OS calls, simulate errors, interactive tests for UAC prompts; restructure code so an analyzer's premise no longer holds
+1. **Cover it the cheapest honest way / fix findings** -- delete the line if only a test would reach it, else widen the nearest existing test, else add a case, and only then a new test function
+2. **Heroic testing / restructuring** -- simulate failures at real external boundaries, mock OS calls, interactive tests for UAC prompts; restructure code so an analyzer's premise no longer holds
 3. **Ask the human** -- they may know a trick, or the code is dead and should be deleted
 4. **Framework exclusions** -- `pragma: no cover`, `istanbul ignore`, `[SuppressMessage]` -- only with human approval
 5. **Documented exceptions** -- absolute last resort, becomes the new baseline
