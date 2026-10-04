@@ -1,6 +1,6 @@
 ---
 name: wrap
-description: Use when the user says /wrap, "wrap up", "close out this session", "finish the session", or otherwise signals intentional session end. Also when the user asks to update memory, save learnings, or commit everything before exit. Runs only when the user explicitly asks - never auto-runs from hooks.
+description: Use when the user says /wrap, "wrap up", "close out this session", "finish the session", "wrap and keep going in a fresh session", or "wrap and continue". Also when asked to update memory, save learnings, or commit everything before exit, or at a natural stopping point after the soft 250K wrap nudge.
 ---
 
 # wrap
@@ -11,12 +11,13 @@ The session-closing ritual for a coding agent session. Performs two equally-mand
 
 - User types `/wrap` or says some variant of "wrap up this session", "close out", "let's finish for the day". `/wrap --fast` runs the same procedure non-interactively (no questions, safe actions only) - see "Fast mode" below.
 - User explicitly asks you to update memory / save learnings / commit everything before exit.
+- In Claude Code, the owner requests a fresh-session chain, or the soft 250K wrap nudge has fired and the current ask or plan task reaches a natural stopping point. See "Chain mode" below.
 
 ## When NOT to use
 
 - User is exiting quickly to restart the session, reboot the machine, or context-switch. Some exits are quick exits; those are not wraps.
-- No explicit wrap intent has been expressed. A `SessionEnd` reminder hook may nudge the user, but you do not invoke wrap yourself without explicit ask.
-- During a mid-session auto-suggestion. Wrap is always intentional and user-initiated.
+- Neither explicit wrap intent nor the chain-mode stopping-point trigger applies. The separate `SessionEnd` reminder only nudges the user.
+- During an unfinished ask or plan task after the soft 250K nudge. Finish that work before chaining; there is no hard context ceiling.
 
 ## Operating principles
 
@@ -30,7 +31,7 @@ The session-closing ritual for a coding agent session. Performs two equally-mand
 
 5. **Extract loose threads before deleting anything.** Any plan, scratch file, or stale memory being removed must first be scanned for "we should fix X later" / "Y might come up again" thoughts, which go to durable destinations *before* the source is removed. See `references/plan-classification.md`.
 
-6. **Stateless.** Wrap maintains no durable record of its own runs. Each invocation asks "what's true right now" and acts accordingly. Running `/wrap` twice in a row is safe - the second run finds nothing the first one already cleaned.
+6. **Current-state driven.** Each invocation asks "what's true right now" and acts accordingly. Running `/wrap` twice in a row is safe - the second run finds nothing the first one already cleaned. In chain mode, handoff files carry the chain ledger; check the recorded successor before launching another.
 
 7. **Verify before delete.** Every finding surfaces with evidence, a recommendation, a confidence level, and the exact action on approval. The user approves a batch of findings at once, not item-by-item, unless explicitly described otherwise below.
 
@@ -71,6 +72,14 @@ The per-phase fast-mode defaults (what each approval gate resolves to) live in `
 
 A `--fast` run that finishes normally emits the **completed** closing sentinel; one the user interrupts emits the interrupted sentinel. Everything else in the Procedure below still applies - fast mode only changes how gates resolve, not the phase order or the failure-handling rules.
 
+## Chain mode
+
+In Claude Code, "wrap and keep going in a fresh session", "wrap and continue", "chain", or "hand off and keep going" selects **w** (wrap with handoff) plus chain mode. The soft 250K wrap nudge selects the same mode at the next natural stopping point, after the current ask or plan task finishes. It is not a hard ceiling; work that needs longer keeps going.
+
+Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, launch from the same working directory with `claude --bg -n "<chain>-<n+1>" --permission-mode <this session's mode> "<resume prompt>"`. Confirm it through `claude agents --json` and record its short and full session ids in the handoff. The reference supplies the fixed resume prompt and failure procedure.
+
+End with the successor's name and `claude attach <shortid>`, then the unchanged closing sentinel. A failed launch keeps the handoff and ends with the failure and exact manual launch command before the sentinel. The finished session ends naturally at its sentinel.
+
 ## Procedure
 
 Wrap runs five phases in strict sequence (0 → 1 → 2 → 3 → 4) - but they are independently fault-tolerant. A failure in phase N does not undo phases 1..N-1, and (for most failures) does not abort phases N+1..last. Phase 4 (the summary) always runs, even after cancellation or failure.
@@ -90,6 +99,8 @@ Before scoping or sweeping anything, scan the conversation for asks the user mad
    - **d** - **wrap, drop the rest.** User decides the unfinished items aren't worth handing off. Continue normally; surface the dropped items in the Phase 4 summary so there's a record of what didn't make it.
 
 **Do not ask a fork the invocation already answered - but say which branch you took.** If the user's own wording picked a branch - *"/wrap with a handoff"*, *"wrap it up and drop the rest"*, *"I'll finish this bit first, wrap the rest"* - take that branch and **say so in that same message, before Phase 1 starts**: which branch, and the wording that chose it. One line.
+
+Chain wording (or the soft nudge at a natural stopping point) selects **w plus chain mode**. Announce that branch and the asks being handed off before Phase 1, as principle 9 requires. Write the chain handoff even when no asks remain, with status `done`; the stop rule then closes normally.
 
 The announcement is not bookkeeping. An unannounced branch is indistinguishable from Phase 0 being skipped entirely, and the user's only chance to correct a misread is *before* the work happens. Re-asking a question the user has already answered is ceremony (principle 9); taking the branch silently is worse than ceremony.
 
@@ -125,7 +136,7 @@ Cross-cutting things not tied to any one project. Only done once per wrap, befor
 
 **2b. Background process sweep.**
 
-Explicitly terminate anything this session started in the background before declaring the session closed. The harness *may* reap these on process exit, but that behavior is undocumented - explicit shutdown gives predictable results and a clean summary line.
+Explicitly terminate anything this session started in the background before declaring the session closed. The one exception is a confirmed chain successor recorded in a handoff header (chain mode, `references/chain.md`): it is the intended continuation, so exclude it from the roster and from every stop below, and leave it running. The harness *may* reap these on process exit, but that behavior is undocumented - explicit shutdown gives predictable results and a clean summary line.
 
 **Enumerate, then verify - for every item below, not just teammates.** Two disciplines apply to all three categories, and both are learned-the-hard-way (see the incident notes under item 3):
 
@@ -254,6 +265,8 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
 **Empty case:** If Phases 0–3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
 
+**Chain-mode closing lines.** After following `references/chain.md`, name the confirmed successor and give `claude attach <shortid>` (or `claude agents` for agent view) immediately before the sentinel. If launch failed or could not be confirmed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
+
 **Closing sentinel (mandatory, every path).** The very last line of the Phase 4 summary MUST be a sentinel marker. Which sentinel depends on whether the wrap ran to its natural end or was cancelled/interrupted partway:
 
 - **Completed wrap** (normal, empty, or proceeded through all phases despite per-repo failures):
@@ -283,6 +296,7 @@ The two sentinels are distinct on purpose: the "go ahead and close" line is the 
 
 ## References
 
+- `references/chain.md` - chain handoff contract, fixed resume prompt, launch confirmation and failure handling.
 - `references/categories.md` - memory-offload category checklist for Phases 2 and 3a.
 - `references/plan-classification.md` - plan-file classifier + the extract-loose-threads-first safety rule for Phase 3b. Loaded by the per-repo subagent that handles 3b, not by the orchestrator.
 - `references/hygiene-checklist.md` - Phase 3c items with research notes per check. Loaded by the per-repo subagent that handles 3c.

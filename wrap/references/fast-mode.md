@@ -2,6 +2,8 @@
 
 How each interactive gate resolves when wrap runs as `/wrap --fast`. The two hard invariants (no questions; safe, additive actions only) and the over-share posture are in SKILL.md; this table is the per-phase resolution.
 
+Chain mode behaves the same with `--fast`: launching the successor is a safe, additive action using this session's explicit permission mode; the handoff, stop rules and confirmation in `chain.md` still apply.
+
 The "interactive default" column is what an unmappable answer resolves to in a normal run (SKILL.md principle 8), not merely what fast mode does. The two columns agree on purpose: fast mode is the interactive default with the asking removed. If you change one, change the other.
 
 | Phase | Interactive default | Fast-mode action |
