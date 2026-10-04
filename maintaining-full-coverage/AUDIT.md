@@ -4,7 +4,7 @@ When editing this skill, verify that pressure scenarios exist to cover each sect
 
 ## Sections requiring scenario coverage
 
-- [x] Completion gate - each of the 5 steps
+- [x] Completion gate - each of the 10 steps (consolidation and stated delta added 2026-10-02)
 - [x] Escalation ladder - each of the 5 tiers, plus the "never skip" constraint
 - [x] Restructure over exclude - restructure production code before reaching for exclusions or analyzer suppressions
 - [x] Report file - treated as a required artifact, updated now not later
@@ -33,6 +33,11 @@ When editing this skill, verify that pressure scenarios exist to cover each sect
 - [x] Three Modes - best-effort (dirty project + unrelated task → ratchet: cover-what-you-touch, don't regress, surface debt)
 - [x] Three Modes - ambiguous mode resolved by asking, not silent default
 - [x] Report file - Mode line recorded; best-effort Status semantics (PASS when own code clean + baseline held)
+- [x] Consolidation pass - required gate step after the bar is met; folds the change's own tests; proof by coverage at three decimals plus a break-the-line probe; "nothing to consolidate" stated
+- [x] Test delta - net-new functions, cases and test-line delta stated against the change's base, outside the report
+- [x] Escalation step 1 authoring order - delete test-only code, widen the nearest test, add a case, only then a new function; regression guard as an issue-tagged case
+- [x] Delete-not-test for identical branches and impossible error handlers (nudge, heroic list, rationalization rows, red flags)
+- [x] `writing-tests` as required sub-skill for how to cover and how to consolidate
 
 ## Scenario inventory
 
@@ -57,8 +62,10 @@ When editing this skill, verify that pressure scenarios exist to cover each sect
 | 17: Best-Effort on a Dirty Project | Best-effort mode, ratchet (cover-what-you-touch, hold baseline, surface debt) |
 | 18: Ambiguous Mode | Mode ambiguity → ask, then apply correct bar; Mode line in report |
 | 19: Report Commit Policy | Required generation, neutral Git handling based on explicit user and repository policy |
+| 20: Five Near-Identical Tests at the Gate | Consolidation pass under time pressure, probe proof, stated delta, `writing-tests` sub-skill |
+| 21: Bug Fix With Test-Only Code | Authoring order, issue-tagged regression case, deleting an impossible handler, scope of test-only code |
 
-## Coverage: 29/29 sections covered
+## Coverage: 34/34 sections covered
 
 - Lint-gate expansion evaluated 2026-05-28 (see `green-results-3.md`).
 - Three-Modes softening evaluated 2026-05-28 (see `modes-results.md`): old skill
@@ -68,3 +75,8 @@ When editing this skill, verify that pressure scenarios exist to cover each sect
 - Report commit policy evaluated 2026-08-01 (see
   `maintaining-full-coverage-report-commit-policy.md`): report generation stays
   required while explicit user and repository policy determines its Git disposition.
+- Test economy evaluated 2026-10-02 (see
+  `maintaining-full-coverage-test-economy-results.md`): the baseline already
+  folded near-duplicate tests, so the measured gain is a required pass, an
+  executed probe and a stated delta; the delete-not-test rows rest on reasoning,
+  not an observed baseline failure.
