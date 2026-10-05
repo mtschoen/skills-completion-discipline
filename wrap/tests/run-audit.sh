@@ -20,7 +20,7 @@ MODE="installed"
 # Scenarios that need a live interactive session (a real Ctrl+C, a real mid-wrap
 # merge conflict). A headless -p run cannot produce them, so they are reported as
 # skipped rather than quietly dropped from the pass count.
-MANUAL_ONLY="7 8"
+MANUAL_ONLY="7 8 22"
 
 ALL_SCENARIOS="1 2 3 4 5 6 9 10 11 12 13 14 15 16 17 18 19 20 21"
 
@@ -82,6 +82,7 @@ scenario_slug() {
 	19) echo "no-build-overfire" ;;
 	20) echo "multi-repo-phase0" ;;
 	21) echo "phase0-pre-answered" ;;
+	22) echo "stop-by-id-gate" ;;
 	*) echo "unknown" ;;
 	esac
 }
