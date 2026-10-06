@@ -1,6 +1,6 @@
 # Session chaining
 
-Chain mode runs the normal wrap with Phase 0 branch **w** (wrap with a handoff), then continues in a fresh Claude Code background session. Each link has its own session id, name and transcript, resumable with `claude --resume`. The handoff and resume-prompt contract is harness-neutral; this launch procedure is for Claude Code.
+Chain mode runs the normal wrap with Phase 0 branch **w** (wrap with a handoff), then continues in a fresh Claude Code session, opened in a new terminal window where the machine has a desktop and in the background otherwise. Each link has its own session id, name and transcript, resumable with `claude --resume`. The handoff and resume-prompt contract is harness-neutral; this launch procedure is for Claude Code.
 
 ## Triggers and order
 
@@ -62,11 +62,25 @@ as link <n+2>.
 
 ## Launch and confirmation
 
-From the same working directory as this session, run:
+The successor opens in a **new terminal window** on the owner's desktop, as an interactive session, so the owner sees it start, can answer its first permission prompt and can change its mode. A background session is the fallback for a machine with no desktop to open a window on.
+
+Write the filled resume prompt to a file first (`~/.claude/handoffs/<same slug>.resume-prompt.txt`, beside the handoff). Passing it on the command line is not possible: Windows Terminal splits its command line at every semicolon, and the prompt contains them.
+
+**Windows, with Windows Terminal (`wt.exe` on PATH).** From the PowerShell tool:
+
+```text
+wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap skill directory>\scripts\launch-chain-successor.ps1" -Name "<chain>-<n+1>" -PermissionMode <this session's mode> -PromptFile "<absolute prompt file path>"
+```
+
+`scripts/launch-chain-successor.ps1` removes the variables the window inherits from the tool call (`NO_COLOR`, `CLAUDECODE`, `CLAUDE_PID`, every `CLAUDE_CODE_*`) and then runs `claude -n <name> --permission-mode <mode> <prompt>`. Never start `claude` in the new window without that scrub.
+
+**No desktop** (an SSH session, a headless host, no `wt.exe`). From the same working directory:
 
 ```text
 claude --bg -n "<chain>-<n+1>" --permission-mode <this session's mode> "<resume prompt>"
 ```
+
+Say in the closing lines that the successor is in the background and may be waiting on a permission prompt nobody can see until the owner runs `claude attach <shortid>`.
 
 This session's own full id (for the handoff's `session_id` field) is in the `CLAUDE_CODE_SESSION_ID` environment variable of any Bash or PowerShell tool call. The permission mode is the one this session is running in (for example `auto`, `acceptEdits` or `default`); when it cannot be determined, use `default`, never a more permissive mode.
 
@@ -79,11 +93,17 @@ Fill every placeholder and quote for the current shell so the complete resume pr
 - Its transcript lands at `~/.claude/projects/<slug>/<session id>.jsonl`.
 - Without explicit `--permission-mode`, the background session started in "manual" mode rather than the launching session's mode. That is why the flag is required.
 
-Run `claude agents --json` after launch and match the returned successor name and identity to the background entry. The launch message alone is not confirmation. Record its name, short id and full session id in the handoff header only once confirmed. This successor starts after the Phase 2b cleanup sweep and is the intended continuation. On a repeated wrap the already-confirmed successor exists before Phase 2b, so Phase 2b must leave it running: it is excluded from the sweep and is never stopped as session-started background work.
+**Verified on 2026-10-06** on Windows (host chonkers), launching from the PowerShell tool:
+
+- A background successor launched with `--permission-mode default` stopped at its first tool call, a read of the handoff outside the working directory, and sat in status `waiting` with nothing on screen until the owner attached. That is why the window is the default.
+- A window opened with `wt.exe -w new ... pwsh -NoExit -Command "claude ..."` and no scrub rendered without colors (`NO_COLOR=1` was inherited) and never appeared in `claude agents --json`.
+- The same window opened through `launch-chain-successor.ps1` rendered in color, and `claude agents --json` listed it within 20 seconds with kind `interactive`, its name and its own full session id.
+
+Run `claude agents --json` after launch and match the returned successor name and identity to the new entry (kind `interactive` for a window, `background` for the fallback). A windowed successor has no short id from a launch message: record the first eight characters of its full session id. The launch message alone is not confirmation. Record its name, short id and full session id in the handoff header only once confirmed. This successor starts after the Phase 2b cleanup sweep and is the intended continuation. On a repeated wrap the already-confirmed successor exists before Phase 2b, so Phase 2b must leave it running: it is excluded from the sweep and is never stopped as session-started background work.
 
 ## Final lines and failure behaviour
 
-For a confirmed successor, name it and give `claude attach <shortid>` (or agent view via `claude agents`), then emit the existing wrap sentinel verbatim as the last line:
+For a confirmed successor, name it and say where it is: "open in a new terminal window" for a windowed successor, or `claude attach <shortid>` (or agent view via `claude agents`) for a background one. Then emit the existing wrap sentinel verbatim as the last line:
 
 > That's a /wrap. Go ahead and close the session.
 

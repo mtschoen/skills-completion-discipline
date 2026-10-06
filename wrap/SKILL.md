@@ -76,9 +76,9 @@ A `--fast` run that finishes normally emits the **completed** closing sentinel; 
 
 In Claude Code, "wrap and keep going in a fresh session", "wrap and continue", "chain", or "hand off and keep going" selects **w** (wrap with handoff) plus chain mode. The soft 250K wrap nudge selects the same mode at the next natural stopping point, after the current ask or plan task finishes. It is not a hard ceiling; work that needs longer keeps going.
 
-Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, launch from the same working directory with `claude --bg -n "<chain>-<n+1>" --permission-mode <this session's mode> "<resume prompt>"`. Confirm it through `claude agents --json` and record its short and full session ids in the handoff. The reference supplies the fixed resume prompt and failure procedure.
+Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, launch the successor in a new terminal window through `scripts/launch-chain-successor.ps1`, or with `claude --bg` on a machine with no desktop; `references/chain.md` has both commands. Confirm it through `claude agents --json` and record its short and full session ids in the handoff. The reference supplies the fixed resume prompt and failure procedure.
 
-End with the successor's name and `claude attach <shortid>`, then the unchanged closing sentinel. A failed launch keeps the handoff and ends with the failure and exact manual launch command before the sentinel. The finished session ends naturally at its sentinel.
+End with the successor's name and where it is (its new window, or `claude attach <shortid>` for a background one), then the unchanged closing sentinel. A failed launch keeps the handoff and ends with the failure and exact manual launch command before the sentinel. The finished session ends naturally at its sentinel.
 
 ## Procedure
 
@@ -269,7 +269,7 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
 **Empty case:** If Phases 0–3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
 
-**Chain-mode closing lines.** After following `references/chain.md`, name the confirmed successor and give `claude attach <shortid>` (or `claude agents` for agent view) immediately before the sentinel. If launch failed or could not be confirmed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
+**Chain-mode closing lines.** After following `references/chain.md`, name the confirmed successor and say where it is: its new terminal window, or `claude attach <shortid>` (or `claude agents` for agent view) for a background one, immediately before the sentinel. If launch failed or could not be confirmed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
 
 **Closing sentinel (mandatory, every path).** The very last line of the Phase 4 summary MUST be a sentinel marker. Which sentinel depends on whether the wrap ran to its natural end or was cancelled/interrupted partway:
 
@@ -312,3 +312,4 @@ The two sentinels are distinct on purpose: the "go ahead and close" line is the 
 User-facing diagnostic utilities shipped alongside the skill, scanning the agent's session transcripts, overridable via the `AGENTS_SESSIONS_DIR` env var. Not invoked during the wrap procedure itself.
 
 - `scripts/find-unwrapped.sh` (bash) and `scripts/find-unwrapped.ps1` (PowerShell) - list recent agent sessions that did NOT end with `/wrap`. Useful for recovering after a crash, a culled agent process, or just answering *"did I leave anything dangling?"*. They apply default recency, size, and scratch-project filters; each script's own help documents those defaults, the reasoning behind them, and how to override them. Run with `--help` (bash) or `Get-Help` (PS).
+- `scripts/launch-chain-successor.ps1` - runs in the new terminal window chain mode opens: clears the inherited Claude Code and color variables, then starts the successor from a prompt file.
