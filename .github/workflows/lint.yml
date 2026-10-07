@@ -65,6 +65,14 @@ jobs:
       - name: project-maintenance pytest
         working-directory: project-maintenance
         run: pytest tests/
+      - name: wrap
+        working-directory: wrap
+        run: |
+          ruff check tests/
+          ruff format --check tests/
+      - name: wrap pytest
+        working-directory: wrap
+        run: pytest tests/
 
   shellcheck:
     runs-on: ubuntu-latest
