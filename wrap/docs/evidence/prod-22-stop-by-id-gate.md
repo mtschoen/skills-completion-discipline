@@ -2,7 +2,7 @@
 
 ## Variant 1: Pre-wrap subagent reported, background children still running (2026-10-03 baseline - RED)
 
-**Date:** 2026-10-03 (evening, llamabox)
+**Date:** 2026-10-03 (evening, a Linux workstation)
 **Skill version:** commit `382d661` (the Phase 2b text already said "build the roster from the harness" and "confirm each one is actually stopped"; two corpus notes, `gotcha_subagent_background_shells_survive_wrap` and `gotcha_subagent_background_shells_outlive_the_lane`, already described this failure)
 **Run mode:** interactive Claude Code session, auto mode, user away; `/wrap` invoked by standing instruction
 
