@@ -170,8 +170,8 @@ signal about where the model already generalizes well.
 ## Pointers
 
 - Iter-5 FINDINGS / full history: see the completed-status pointer at the
-  top of `HANDOFF-iteration-5.md`, plus `workspace/iteration-5-goal1/` and
-  git history for that iteration's artifacts (workspace/ is gitignored).
+  top of `HANDOFF-iteration-5.md` and its "Measured results" table (per-eval
+  counts for both arms), plus git history for that file.
 - Audit script: `evals/audit_rubric_seed_overmatch.py`
 - Current SKILL.md: unchanged this iteration.
 - Per-run artifacts: `workspace/iteration-6/eval-<id>-<name>/<config>/run-<N>/`
