@@ -27,6 +27,10 @@ and asks a question that has to be answered before the work can be handed over.
 | [`wrap`](wrap/) | Is the session actually closed out, or just abandoned? |
 | [`project-maintenance`](project-maintenance/) | What did the work leave behind in the repo? |
 
+One companion is a Claude Code mod rather than a skill: [`idle-wrap`](idle-wrap/)
+runs `/wrap --fast` in a session that has sat idle near the prompt-cache cliff,
+so an abandoned session is wrapped instead of compacted.
+
 They compose deliberately, and in that order. The first four settle the change
 itself: `smoke-test` proves it runs, `maintaining-full-coverage` proves it did
 not cost quality elsewhere, `docs-update` catches the prose it invalidated, and

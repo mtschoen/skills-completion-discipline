@@ -1,0 +1,4 @@
+{
+  "description": "The idle-wrap hooks module: wraps an idle session instead of compacting it",
+  "modules": ["./register.js"]
+}

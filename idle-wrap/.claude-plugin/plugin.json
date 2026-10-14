@@ -1,0 +1,26 @@
+{
+  "name": "idle-wrap",
+  "version": "0.1.0",
+  "description": "Runs /wrap --fast in the open session when it has sat idle near the prompt-cache cliff, instead of letting idle compaction summarize it",
+  "author": { "name": "Matt Schoen" },
+  "userConfig": {
+    "idleMinutes": {
+      "type": "string",
+      "title": "Idle minutes before wrapping",
+      "description": "Minutes since the last turn before the mod submits the wrap prompt. Idle compaction fires at about 54; the default stays ahead of it.",
+      "default": "50"
+    },
+    "minTokens": {
+      "type": "string",
+      "title": "Minimum context tokens",
+      "description": "Sessions whose context is below this many tokens are left alone; a small session is cheap to re-read cold.",
+      "default": "60000"
+    },
+    "prompt": {
+      "type": "string",
+      "title": "Prompt to submit",
+      "description": "Submitted as the user's own words once the session is idle long enough.",
+      "default": "/wrap --fast"
+    }
+  }
+}

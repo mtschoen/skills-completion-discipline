@@ -1,0 +1,6 @@
+# Extra top-level entries to install beyond the baseline (SKILL.md, scripts/,
+# references/, assets/). The plugin manifest and hooks module are what make
+# this directory a mod that Claude Code auto-loads from ~/.claude/skills.
+.claude-plugin/
+hooks/
+tests/

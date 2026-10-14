@@ -12,11 +12,12 @@ The session-closing ritual for a coding agent session. Performs two equally-mand
 - User types `/wrap` or says some variant of "wrap up this session", "close out", "let's finish for the day". `/wrap --fast` runs the same procedure non-interactively (no questions, safe actions only) - see "Fast mode" below.
 - User explicitly asks you to update memory / save learnings / commit everything before exit.
 - In Claude Code, the owner requests a fresh-session chain, or the soft 250K wrap nudge has fired and the current ask or plan task reaches a natural stopping point. See "Chain mode" below.
+- In Claude Code, the `idle-wrap` mod runs `/wrap --fast` on the owner's behalf when the session has sat idle near the prompt-cache cliff. That run is the owner's standing ask, configured once; treat it exactly like a typed `/wrap --fast`.
 
 ## When NOT to use
 
 - User is exiting quickly to restart the session, reboot the machine, or context-switch. Some exits are quick exits; those are not wraps.
-- Neither explicit wrap intent nor the chain-mode stopping-point trigger applies. The separate `SessionEnd` reminder only nudges the user.
+- Neither explicit wrap intent, the chain-mode stopping-point trigger, nor an `idle-wrap` run applies. The separate `SessionEnd` reminder only nudges the user.
 - During an unfinished ask or plan task after the soft 250K nudge. Finish that work before chaining; there is no hard context ceiling.
 
 ## Operating principles

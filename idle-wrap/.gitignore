@@ -1,0 +1,3 @@
+# Written by Claude Code when the mod loads from --plugin-dir; per-version, not source.
+.claude-plugin/types/
+tsconfig.json
