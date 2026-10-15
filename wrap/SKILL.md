@@ -77,9 +77,9 @@ A `--fast` run that finishes normally emits the **completed** closing sentinel; 
 
 In Claude Code, "wrap and keep going in a fresh session", "wrap and continue", "chain", or "hand off and keep going" selects **w** (wrap with handoff) plus chain mode. The soft 250K wrap nudge selects the same mode at the next natural stopping point, after the current ask or plan task finishes. It is not a hard ceiling; work that needs longer keeps going.
 
-Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, launch the successor in a new terminal window through `scripts/launch-chain-successor.ps1`, or with `claude --bg` on a machine with no desktop; `references/chain.md` has both commands. Confirm it through `claude agents --json` and record its short and full session ids in the handoff. The reference supplies the fixed resume prompt and failure procedure.
+Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, print the exact one-line launch command for the owner to run (`claude -n <chain>-<n+1> --model <model> '<resume prompt>'`) and record in the handoff header that the successor is owner-started (`session_id: null`). On a machine with a desktop the wrap may instead open the successor in a new visible console window through `scripts/launch-chain-successor.ps1`, confirm its startup via `claude agents --json`, and record `launch: window` with its confirmed session id. On repeated wraps, check liveness before reusing a window. If window launch or confirmation fails, fall back to owner-started with the printed command. `references/chain.md` has both forms, the fixed resume prompt, literal argument quoting, and the failure handling.
 
-End with the successor's name and where it is (its new window, or `claude attach <shortid>` for a background one), then the unchanged closing sentinel. A failed launch keeps the handoff and ends with the failure and exact manual launch command before the sentinel. The finished session ends naturally at its sentinel.
+End with the successor's name and the launch line (or its confirmed window), then the unchanged closing sentinel. A failed or unconfirmed window launch keeps the handoff and ends with the failure and the exact launch command before the sentinel. The finished session ends naturally at its sentinel.
 
 ## Procedure
 
@@ -137,7 +137,7 @@ Cross-cutting things not tied to any one project. Only done once per wrap, befor
 
 **2b. Background process sweep.**
 
-Explicitly terminate anything this session started in the background before declaring the session closed. The one exception is a confirmed chain successor recorded in a handoff header (chain mode, `references/chain.md`): it is the intended continuation, so exclude it from the roster and from every stop below, and leave it running. The harness *may* reap these on process exit, but that behavior is undocumented - explicit shutdown gives predictable results and a clean summary line.
+Explicitly terminate anything this session started in the background before declaring the session closed. The one exception is a chain successor window the wrap opened, recorded in a handoff header (chain mode, `references/chain.md`): it is the intended continuation, so exclude it from the roster and from every stop below, and leave it running. The harness *may* reap these on process exit, but that behavior is undocumented - explicit shutdown gives predictable results and a clean summary line.
 
 **Enumerate, then verify - for every item below, not just teammates.** Two disciplines apply to all three categories, and both are learned-the-hard-way (see the incident notes under item 3):
 
@@ -270,7 +270,7 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
 **Empty case:** If Phases 0–3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
 
-**Chain-mode closing lines.** After following `references/chain.md`, name the confirmed successor and say where it is: its new terminal window, or `claude attach <shortid>` (or `claude agents` for agent view) for a background one, immediately before the sentinel. If launch failed or could not be confirmed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
+**Chain-mode closing lines.** After following `references/chain.md`, name the successor and give the launch line (the exact filled `claude -n ... --model ...` command) or say it is open in a new terminal window, immediately before the sentinel. If a window launch failed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
 
 **Closing sentinel (mandatory, every path).** The very last line of the Phase 4 summary MUST be a sentinel marker. Which sentinel depends on whether the wrap ran to its natural end or was cancelled/interrupted partway:
 
@@ -301,7 +301,7 @@ The two sentinels are distinct on purpose: the "go ahead and close" line is the 
 
 ## References
 
-- `references/chain.md` - chain handoff contract, fixed resume prompt, launch confirmation and failure handling.
+- `references/chain.md` - chain handoff contract, fixed resume prompt, launch forms and failure handling.
 - `references/categories.md` - memory-offload category checklist for Phases 2 and 3a.
 - `references/plan-classification.md` - plan-file classifier + the extract-loose-threads-first safety rule for Phase 3b. Loaded by the per-repo subagent that handles 3b, not by the orchestrator.
 - `references/hygiene-checklist.md` - Phase 3c items with research notes per check. Loaded by the per-repo subagent that handles 3c.

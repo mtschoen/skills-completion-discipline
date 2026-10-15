@@ -258,3 +258,165 @@ def test_launch_chain_successor_prompt_file_handling(
             assert not invocation_log.exists(), (
                 f"Claude CLI must not be invoked for {case_identifier}, but {invocation_log} was written"
             )
+
+
+RESUME_PROMPT_TEMPLATE = (
+    'You are link {next_link} of session chain "{chain_name}". Before anything else, read the '
+    'handoff {handoff_path} in full, then continue from its "Next steps, '
+    'in order". Honor every ruling under "Inherited owner rulings" without reopening any of them, '
+    "including those made in earlier links. Keep the standing "
+    "routing rules: dispatch subagents for well-specified lanes and route "
+    "sustained volume to external harnesses (codex, opencode, agy, kimi, local "
+    'qwen) as the handoff\'s "How to run the lanes" describes; the orchestrator '
+    "seat does triage, briefs, review and delicate steps only. Ask owner questions "
+    "one per turn through the question widget. When the wrap nudge fires and you "
+    "reach a natural stopping point, or the owner asks, wrap and continue the chain "
+    "as link {future_link}."
+)
+
+
+def quote_posix_argument(argument: str) -> str:
+    """Quotes an argument for POSIX shells using literal single-quoting."""
+    return "'" + argument.replace("'", "'\\''") + "'"
+
+
+def format_printed_launch_command(
+    chain_name: str,
+    next_link: int,
+    model: str,
+    handoff_path: str,
+) -> tuple[str, str]:
+    """Formats the collapsed resume prompt and single-quoted POSIX launch command."""
+    prompt = RESUME_PROMPT_TEMPLATE.format(
+        chain_name=chain_name,
+        next_link=next_link,
+        handoff_path=handoff_path,
+        future_link=next_link + 1,
+    )
+    collapsed_prompt = " ".join(prompt.split())
+    quoted_prompt = quote_posix_argument(collapsed_prompt)
+    command = f"claude -n {chain_name}-{next_link} --model {model} {quoted_prompt}"
+    return collapsed_prompt, command
+
+
+def find_posix_shell_executable() -> str | None:
+    shell_on_path = shutil.which("bash") or shutil.which("sh")
+    if shell_on_path:
+        return str(Path(shell_on_path).resolve())
+    if os.name == "nt":
+        for candidate_path in (
+            Path(r"C:\Program Files\Git\bin\bash.exe"),
+            Path(r"C:\Program Files\Git\usr\bin\bash.exe"),
+            Path(r"C:\Program Files\Git\bin\sh.exe"),
+        ):
+            if candidate_path.is_file():
+                return str(candidate_path.resolve())
+    return None
+
+
+@pytest.mark.parametrize(
+    ("case_identifier", "handoff_path_component"),
+    [
+        (
+            "finding-1-command-substitution-dollar-parentheses",
+            "$(printf INJECTED >&2)",
+        ),
+        (
+            "finding-1-command-substitution-backticks",
+            "`printf INJECTED >&2`",
+        ),
+        (
+            "finding-1-variable-expansion-dollar-sign",
+            "$REVIEW_SUFFIX",
+        ),
+        (
+            "finding-1-doubled-backslash-path",
+            "double\\\\backslash",
+        ),
+        (
+            "finding-1-apostrophe-single-quote",
+            "owner's-handoff",
+        ),
+    ],
+    ids=[
+        "finding-1-command-substitution-dollar-parentheses",
+        "finding-1-command-substitution-backticks",
+        "finding-1-variable-expansion-dollar-sign",
+        "finding-1-doubled-backslash-path",
+        "finding-1-apostrophe-single-quote",
+    ],
+)
+def test_printed_command_posix_quoting_round_trip(
+    case_identifier: str,
+    handoff_path_component: str,
+) -> None:
+    shell_executable = find_posix_shell_executable()
+    if not shell_executable:
+        pytest.skip("POSIX shell executable (sh or bash) not found on system")
+
+    handoff_path = f"/home/user/.claude/handoffs/2026-10-14-{handoff_path_component}.md"
+    collapsed_prompt, printed_command = format_printed_launch_command(
+        chain_name="settle-and-cure",
+        next_link=2,
+        model="opus",
+        handoff_path=handoff_path,
+    )
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        mock_binary_directory = temporary_root / "bin"
+        mock_binary_directory.mkdir()
+
+        invocation_log = temporary_root / "invoked_arguments.txt"
+
+        mock_claude_script = mock_binary_directory / "claude"
+        mock_claude_script.write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "$@" > "{invocation_log}"\n',
+            encoding="utf-8",
+        )
+        mock_claude_script.chmod(0o755)
+
+        environment = os.environ.copy()
+        current_path = environment.get("PATH", "")
+        environment["PATH"] = (
+            f"{mock_binary_directory}{os.pathsep}{current_path}"
+            if current_path
+            else str(mock_binary_directory)
+        )
+        environment["REVIEW_SUFFIX"] = "INJECTED_ENV_VALUE"
+
+        completed_process = subprocess.run(
+            [shell_executable, "-c", printed_command],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert completed_process.returncode == 0, (
+            f"Expected shell execution to succeed for {case_identifier}, but received returncode "
+            f"{completed_process.returncode}.\n"
+            f"Standard output:\n{completed_process.stdout}\n"
+            f"Standard error:\n{completed_process.stderr}"
+        )
+        assert completed_process.stderr == "", (
+            f"Expected empty standard error (no command substitution or injection) for {case_identifier}, "
+            f"but received:\n{completed_process.stderr}"
+        )
+        assert invocation_log.is_file(), (
+            f"Expected mock claude script to be invoked for {case_identifier}, but {invocation_log} was not created"
+        )
+
+        invoked_arguments = invocation_log.read_text(encoding="utf-8").splitlines()
+        expected_arguments = [
+            "-n",
+            "settle-and-cure-2",
+            "--model",
+            "opus",
+            collapsed_prompt,
+        ]
+        assert invoked_arguments == expected_arguments, (
+            f"Argument mismatch for {case_identifier}.\n"
+            f"Expected:\n{expected_arguments}\n"
+            f"Received:\n{invoked_arguments}"
+        )
