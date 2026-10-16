@@ -9,7 +9,7 @@ The owner can say "wrap and keep going in a fresh session", "wrap and continue",
 1. Announce **w plus chain mode** and the unfinished asks before Phase 1.
 2. Run all normal wrap phases, preparing the handoff during memory offload and finalizing it after cleanup, before Phase 4's closing lines.
 3. Apply the stop rule below, then print the launch command (or open the successor's window) when appropriate.
-4. Finish with the launch line and wrap sentinel. The finished session simply ends at its sentinel; nothing kills it. Each continuation is a separate session, not `/clear`.
+4. Finish with the launch line and the chained sentinel (see Final lines). The finished session simply ends at its sentinel; nothing kills it. Each continuation is a separate session, not `/clear`.
 
 ## Handoff contract
 
@@ -100,8 +100,12 @@ A printed command leaves nothing running, so Phase 2b has nothing to exclude. A 
 
 ## Final lines and failure behaviour
 
-For a `continue` handoff, name the successor and give the launch line: repeat the printed command (or, for a confirmed window, say "open in a new terminal window") immediately before the sentinel. Then emit the existing wrap sentinel verbatim as the last line:
+For a `continue` handoff, name the successor and give the launch line: repeat the printed command (or, for a confirmed window, say "open in a new terminal window") immediately before the sentinel. Then emit the chained sentinel verbatim as the last line, with `<n>` the current link number and `<chain>-<n+1>` the successor's session name (for example `settle-and-cure-6`):
+
+> `That was a chained /wrap. Link <n> is closed; start <chain>-<n+1> with the command above.`
+
+It is emitted only when the wrap printed a successor launch command or confirmed a window launch. A wrap that stops (status `blocked` or `done`, or the 10-link cap) has no successor and ends with the completed sentinel:
 
 > That's a /wrap. Go ahead and close the session.
 
-If a window launch fails or startup cannot be confirmed, keep the handoff, say plainly that window launch failed or was unconfirmed, set `launch: owner-started` with `session_id: null`, and print the exact copy-pasteable fallback command as above. Do not invent successor ids. A launch problem does not undo the completed wrap; the normal closing sentinel still ends it. If the wrap itself was interrupted, use Phase 4's interrupted sentinel instead.
+If a window launch fails or startup cannot be confirmed, keep the handoff, say plainly that window launch failed or was unconfirmed, set `launch: owner-started` with `session_id: null`, and print the exact copy-pasteable fallback command as above. Do not invent successor ids. A launch problem does not undo the completed wrap; a printed fallback command still ends with the chained sentinel. If the wrap itself was interrupted, use Phase 4's interrupted sentinel instead.

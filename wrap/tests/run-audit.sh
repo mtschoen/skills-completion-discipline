@@ -40,24 +40,27 @@ With no SCENARIO arguments, every headless-capable scenario runs.
 EOF
 }
 
-while getopts ":m:o:cClh" opt; do
-	case "$opt" in
-	m) MODEL="$OPTARG" ;;
-	o) OUTDIR="$OPTARG" ;;
-	c) MODE="clean" ;;
-	C) MODE="control" ;;
-	l) LIST_ONLY=1 ;;
-	h)
-		usage
-		exit 0
-		;;
-	*)
-		usage >&2
-		exit 2
-		;;
-	esac
-done
-shift $((OPTIND - 1))
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	while getopts ":m:o:cClh" opt; do
+		case "$opt" in
+		m) MODEL="$OPTARG" ;;
+		o) OUTDIR="$OPTARG" ;;
+		c) MODE="clean" ;;
+		C) MODE="control" ;;
+		l) LIST_ONLY=1 ;;
+		h)
+			usage
+			exit 0
+			;;
+		*)
+			usage >&2
+			exit 2
+			;;
+		esac
+	done
+	shift $((OPTIND - 1))
+fi
+
 
 scenario_slug() {
 	case "$1" in
@@ -87,31 +90,34 @@ scenario_slug() {
 	esac
 }
 
-if [ "$LIST_ONLY" = 1 ]; then
-	for n in $(echo "$ALL_SCENARIOS $MANUAL_ONLY" | tr ' ' '\n' | sort -n); do
-		note=""
-		case " $MANUAL_ONLY " in *" $n "*) note="  (manual only)" ;; esac
-		printf '%2s  %s%s\n' "$n" "$(scenario_slug "$n")" "$note"
-	done
-	exit 0
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	if [ "$LIST_ONLY" = 1 ]; then
+		for n in $(echo "$ALL_SCENARIOS $MANUAL_ONLY" | tr ' ' '\n' | sort -n); do
+			note=""
+			case " $MANUAL_ONLY " in *" $n "*) note="  (manual only)" ;; esac
+			printf '%2s  %s%s\n' "$n" "$(scenario_slug "$n")" "$note"
+		done
+		exit 0
+	fi
+
+	command -v claude >/dev/null 2>&1 || {
+		echo "error: 'claude' is not on PATH" >&2
+		exit 1
+	}
+	command -v git >/dev/null 2>&1 || {
+		echo "error: 'git' is not on PATH" >&2
+		exit 1
+	}
+
+	if [ -z "$OUTDIR" ]; then
+		OUTDIR="$(mktemp -d "${TMPDIR:-/tmp}/wrap-audit.XXXXXX")"
+	fi
+	mkdir -p "$OUTDIR"
+
+	REQUESTED="$*"
+	[ -n "$REQUESTED" ] || REQUESTED="$ALL_SCENARIOS"
 fi
 
-command -v claude >/dev/null 2>&1 || {
-	echo "error: 'claude' is not on PATH" >&2
-	exit 1
-}
-command -v git >/dev/null 2>&1 || {
-	echo "error: 'git' is not on PATH" >&2
-	exit 1
-}
-
-if [ -z "$OUTDIR" ]; then
-	OUTDIR="$(mktemp -d "${TMPDIR:-/tmp}/wrap-audit.XXXXXX")"
-fi
-mkdir -p "$OUTDIR"
-
-REQUESTED="$*"
-[ -n "$REQUESTED" ] || REQUESTED="$ALL_SCENARIOS"
 
 # ---------------------------------------------------------------------------
 # clean-room mode (AUDIT.md open item #10)
@@ -142,7 +148,7 @@ REQUESTED="$*"
 # credentials anywhere to make that happen.
 # ---------------------------------------------------------------------------
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE_ARGS=()
 PLUGIN_DIR=""
 
@@ -151,15 +157,17 @@ PLUGIN_DIR=""
 # rather than loudly. That makes this harness umbrella-only, which is fine -
 # tests/ is dev-only content the installer never ships.
 CLEAN_ROOM_LIB="$REPO_ROOT/../scripts/clean-room.sh"
-if [ "$MODE" != "installed" ]; then
-	[ -f "$CLEAN_ROOM_LIB" ] || {
-		echo "error: clean-room modes need $CLEAN_ROOM_LIB, which ships with the" >&2
-		echo "       skills-dev umbrella. Run this from a checkout of skills-dev" >&2
-		echo "       with this skill as a submodule, or use the default mode." >&2
-		exit 2
-	}
-	# shellcheck source=/dev/null
-	. "$CLEAN_ROOM_LIB"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	if [ "$MODE" != "installed" ]; then
+		[ -f "$CLEAN_ROOM_LIB" ] || {
+			echo "error: clean-room modes need $CLEAN_ROOM_LIB, which ships with the" >&2
+			echo "       skills-dev umbrella. Run this from a checkout of skills-dev" >&2
+			echo "       with this skill as a submodule, or use the default mode." >&2
+			exit 2
+		}
+		# shellcheck source=/dev/null
+		. "$CLEAN_ROOM_LIB"
+	fi
 fi
 
 canonical_path() {
@@ -477,6 +485,8 @@ adapt_prompt() {
 
 SENTINEL_DONE="That's a /wrap. Go ahead and close the session."
 SENTINEL_INTERRUPTED="That was an interrupted /wrap"
+SENTINEL_CHAINED="That was a chained /wrap"
+
 # A control has no skill and so never emits a sentinel: it runs to the cap every
 # time, and the turns after it has said its piece are the harness prodding an
 # already-finished session with "approved, go ahead". Four is enough to see what
@@ -600,9 +610,11 @@ drive_session() {
 
 		ended="$(result_lines "$turn_out")"
 		if grep -qF "$SENTINEL_DONE" <<<"$ended" ||
-			grep -qF "$SENTINEL_INTERRUPTED" <<<"$ended"; then
+			grep -qF "$SENTINEL_INTERRUPTED" <<<"$ended" ||
+			grep -qF "$SENTINEL_CHAINED" <<<"$ended"; then
 			return 0
 		fi
+
 		input="$(answer_for "$ended")"
 	done
 	# Out of turns without a sentinel; the sentinel check reports it as a FAIL.
@@ -684,9 +696,12 @@ generic_checks() {
 		echo "PASS sentinel-completed"
 	elif grep -qF "$SENTINEL_INTERRUPTED" <<<"$ended"; then
 		echo "PASS sentinel-interrupted"
+	elif grep -qF "$SENTINEL_CHAINED" <<<"$ended"; then
+		echo "PASS sentinel-chained"
 	else
 		echo "FAIL sentinel-missing"
 	fi
+
 }
 
 # Isolation is a claim until the trace proves it, and the stream says so
@@ -830,90 +845,92 @@ scenario_checks() {
 # run
 # ---------------------------------------------------------------------------
 
-echo "wrap audit: model=$MODEL outdir=$OUTDIR mode=$MODE"
-case "$MODE" in
-clean)
-	echo "clean room: wrap from $PLUGIN_DIR (this checkout, NOT what you installed)"
-	echo "clean room: invoked as /$CLEAN_ROOM_NS:$CLEAN_ROOM_SKILL"
-	;;
-control)
-	echo "control: no wrap installed - these runs show the model unaided, and"
-	echo "the checks below are observations, not a pass bar."
-	;;
-esac
-[ -z "${CLAUDE_CONFIG_DIR:-}" ] || echo "config dir: $CLAUDE_CONFIG_DIR"
-echo
-
-pass_count=0
-fail_count=0
-skipped=""
-
-for n in $REQUESTED; do
-	slug="$(scenario_slug "$n")"
-
-	case " $MANUAL_ONLY " in
-	*" $n "*)
-		skipped="$skipped $n:$slug"
-		continue
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	echo "wrap audit: model=$MODEL outdir=$OUTDIR mode=$MODE"
+	case "$MODE" in
+	clean)
+		echo "clean room: wrap from $PLUGIN_DIR (this checkout, NOT what you installed)"
+		echo "clean room: invoked as /$CLEAN_ROOM_NS:$CLEAN_ROOM_SKILL"
+		;;
+	control)
+		echo "control: no wrap installed - these runs show the model unaided, and"
+		echo "the checks below are observations, not a pass bar."
 		;;
 	esac
+	[ -z "${CLAUDE_CONFIG_DIR:-}" ] || echo "config dir: $CLAUDE_CONFIG_DIR"
+	echo
 
-	root="$OUTDIR/wrap-test-$(printf '%02d' "$n")-$slug"
-	mkdir -p "$root"
-	start_dir="$(build_fixture "$n" "$root")"
-	prompt="$(adapt_prompt "$(scenario_prompt "$n")")"
-	trace="$root/trace.jsonl"
+	pass_count=0
+	fail_count=0
+	skipped=""
 
-	echo "--- scenario $n ($slug)"
-	snapshot_sessions >"$root/sessions.before"
-	: >"$root/stderr.log"
-	drive_session "$start_dir" "$prompt" "$trace" "$root/stderr.log" || {
-		echo "    RUN-ERROR (see $root/stderr.log)"
-		fail_count=$((fail_count + 1))
-		continue
-	}
+	for n in $REQUESTED; do
+		slug="$(scenario_slug "$n")"
 
-	snapshot_sessions >"$root/sessions.after"
-	printf '    %s turn(s), $%s\n' "$TURNS" \
-		"$(result_lines "$trace" | grep -oE '"total_cost_usd":[0-9.]+' |
-			cut -d: -f2 | awk '{ total += $1 } END { printf "%.2f", total }')"
-	# In a control run every behaviour check is the question rather than the bar -
-	# a missing sentinel is the finding, not a defect - so they are relabelled
-	# CTRL- and kept out of the count. The isolation checks still bind: a control
-	# that could see wrap is a broken control.
-	behaviour="$(
-		generic_checks "$trace"
-		scenario_checks "$n" "$trace" "$start_dir"
-	)"
+		case " $MANUAL_ONLY " in
+		*" $n "*)
+			skipped="$skipped $n:$slug"
+			continue
+			;;
+		esac
+
+		root="$OUTDIR/wrap-test-$(printf '%02d' "$n")-$slug"
+		mkdir -p "$root"
+		start_dir="$(build_fixture "$n" "$root")"
+		prompt="$(adapt_prompt "$(scenario_prompt "$n")")"
+		trace="$root/trace.jsonl"
+
+		echo "--- scenario $n ($slug)"
+		snapshot_sessions >"$root/sessions.before"
+		: >"$root/stderr.log"
+		drive_session "$start_dir" "$prompt" "$trace" "$root/stderr.log" || {
+			echo "    RUN-ERROR (see $root/stderr.log)"
+			fail_count=$((fail_count + 1))
+			continue
+		}
+
+		snapshot_sessions >"$root/sessions.after"
+		printf '    %s turn(s), $%s\n' "$TURNS" \
+			"$(result_lines "$trace" | grep -oE '"total_cost_usd":[0-9.]+' |
+				cut -d: -f2 | awk '{ total += $1 } END { printf "%.2f", total }')"
+		# In a control run every behaviour check is the question rather than the bar -
+		# a missing sentinel is the finding, not a defect - so they are relabelled
+		# CTRL- and kept out of the count. The isolation checks still bind: a control
+		# that could see wrap is a broken control.
+		behaviour="$(
+			generic_checks "$trace"
+			scenario_checks "$n" "$trace" "$start_dir"
+		)"
+		if [ "$MODE" = "control" ]; then
+			behaviour="CTRL-${behaviour//$'\n'/$'\n'CTRL-}"
+		fi
+		results="$(
+			[ "$MODE" = "installed" ] || cleanroom_checks "$trace"
+			printf '%s\n' "$behaviour"
+			pollution_checks "$root/sessions.before" "$root/sessions.after"
+		)"
+		while IFS= read -r line; do printf '    %s\n' "$line"; done <<<"$results"
+
+		if echo "$results" | grep -q '^FAIL'; then
+			fail_count=$((fail_count + 1))
+		else
+			pass_count=$((pass_count + 1))
+		fi
+	done
+
+	echo
 	if [ "$MODE" = "control" ]; then
-		behaviour="CTRL-${behaviour//$'\n'/$'\n'CTRL-}"
-	fi
-	results="$(
-		[ "$MODE" = "installed" ] || cleanroom_checks "$trace"
-		printf '%s\n' "$behaviour"
-		pollution_checks "$root/sessions.before" "$root/sessions.after"
-	)"
-	while IFS= read -r line; do printf '    %s\n' "$line"; done <<<"$results"
-
-	if echo "$results" | grep -q '^FAIL'; then
-		fail_count=$((fail_count + 1))
+		echo "control: $pass_count scenario(s) observed, $fail_count with a broken room"
 	else
-		pass_count=$((pass_count + 1))
+		echo "checked: $pass_count pass, $fail_count fail"
 	fi
-done
+	if [ -n "$skipped" ]; then
+		echo "skipped (need a live interactive session, not headless):$skipped"
+	fi
+	echo "traces + fixtures: $OUTDIR"
+	echo
+	echo "These checks are the mechanical floor, not the pass criteria. Read the"
+	echo "traces against docs/pressure-scenarios.md before writing an AUDIT.md row."
 
-echo
-if [ "$MODE" = "control" ]; then
-	echo "control: $pass_count scenario(s) observed, $fail_count with a broken room"
-else
-	echo "checked: $pass_count pass, $fail_count fail"
+	[ "$fail_count" = 0 ]
 fi
-if [ -n "$skipped" ]; then
-	echo "skipped (need a live interactive session, not headless):$skipped"
-fi
-echo "traces + fixtures: $OUTDIR"
-echo
-echo "These checks are the mechanical floor, not the pass criteria. Read the"
-echo "traces against docs/pressure-scenarios.md before writing an AUDIT.md row."
-
-[ "$fail_count" = 0 ]

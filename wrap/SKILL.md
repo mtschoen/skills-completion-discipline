@@ -71,7 +71,7 @@ The session-closing ritual for a coding agent session. Performs two equally-mand
 
 The per-phase fast-mode defaults (what each approval gate resolves to) live in `references/fast-mode.md` - read it before running a `--fast` wrap.
 
-A `--fast` run that finishes normally emits the **completed** closing sentinel; one the user interrupts emits the interrupted sentinel. Everything else in the Procedure below still applies - fast mode only changes how gates resolve, not the phase order or the failure-handling rules.
+A `--fast` run that finishes normally emits the **completed** closing sentinel (the **chained** one when it launched a chain successor); one the user interrupts emits the interrupted sentinel. Everything else in the Procedure below still applies - fast mode only changes how gates resolve, not the phase order or the failure-handling rules.
 
 ## Chain mode
 
@@ -79,7 +79,7 @@ In Claude Code, "wrap and keep going in a fresh session", "wrap and continue", "
 
 Run the normal phases and write the handoff using `references/chain.md` in full. Stop without a successor when its status is `blocked` or `done`, or the next session would exceed the safety cap of **10 links**. Otherwise, after cleanup and before Phase 4's final lines, print the exact one-line launch command for the owner to run (`claude -n <chain>-<n+1> --model <model> '<resume prompt>'`) and record in the handoff header that the successor is owner-started (`session_id: null`). On a machine with a desktop the wrap may instead open the successor in a new visible console window through `scripts/launch-chain-successor.ps1`, confirm its startup via `claude agents --json`, and record `launch: window` with its confirmed session id. On repeated wraps, check liveness before reusing a window. If window launch or confirmation fails, fall back to owner-started with the printed command. `references/chain.md` has both forms, the fixed resume prompt, literal argument quoting, and the failure handling.
 
-End with the successor's name and the launch line (or its confirmed window), then the unchanged closing sentinel. A failed or unconfirmed window launch keeps the handoff and ends with the failure and the exact launch command before the sentinel. The finished session ends naturally at its sentinel.
+End with the successor's name and the launch line (or its confirmed window), then the chained sentinel (see Phase 4), which names the successor. A chain that stops (status `blocked` or `done`, or the 10-link cap) has no successor and ends with the ordinary completed sentinel. A failed or unconfirmed window launch keeps the handoff and ends with the failure and the exact launch command before the sentinel; if the fallback command was printed, the chained sentinel still applies. The finished session ends naturally at its sentinel.
 
 ## Procedure
 
@@ -270,7 +270,7 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
 **Empty case:** If Phases 0–3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
 
-**Chain-mode closing lines.** After following `references/chain.md`, name the successor and give the launch line (the exact filled `claude -n ... --model ...` command) or say it is open in a new terminal window, immediately before the sentinel. If a window launch failed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand. If status or the 10-link cap stopped the chain, state that reason instead. An interrupted wrap follows the cancellation path without launching a successor.
+**Chain-mode closing lines.** After following `references/chain.md`, name the successor and give the launch line (the exact filled `claude -n ... --model ...` command) or say it is open in a new terminal window, immediately before the sentinel. A wrap that launched a successor (printed the launch command or confirmed a window) ends with the chained sentinel. If a window launch failed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand; that printed command still earns the chained sentinel. If status or the 10-link cap stopped the chain, state that reason instead and end with the completed sentinel, since there is no successor. An interrupted wrap follows the cancellation path without launching a successor and ends with the interrupted sentinel.
 
 **Closing sentinel (mandatory, every path).** The very last line of the Phase 4 summary MUST be a sentinel marker. Which sentinel depends on whether the wrap ran to its natural end or was cancelled/interrupted partway:
 
@@ -282,7 +282,13 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
   > That was an interrupted /wrap. The session is NOT in a clean wrap state - some items may still be dirty, uncommitted, or unsaved.
 
-The two sentinels are distinct on purpose: the "go ahead and close" line is the user's signal that the wrap procedure ran to its end. An interrupted wrap must **NOT** emit that line - it would falsely tell the user the session is safely closeable when it isn't. The interrupted sentinel makes the partial state explicit instead. No variations, no embellishments, no emoji on either. Pick one and only one; both are session-end markers so the transcript shows what actually happened.
+- **Chained wrap** (a completed wrap that printed a successor launch command or confirmed a window launch; `<n>` is the current link number and `<chain>-<n+1>` the successor's session name, for example `settle-and-cure-6`):
+
+  > `That was a chained /wrap. Link <n> is closed; start <chain>-<n+1> with the command above.`
+
+  An interrupted chained wrap still emits the interrupted sentinel. A chain that stops (status `blocked` or `done`, or the 10-link cap) has no successor and emits the completed sentinel.
+
+The three sentinels are distinct on purpose: the "go ahead and close" line is the user's signal that the wrap procedure ran to its end with nothing waiting to be started, and the chained line says the same but also tells the owner a successor is waiting. An interrupted wrap must **NOT** emit that line - it would falsely tell the user the session is safely closeable when it isn't. The interrupted sentinel makes the partial state explicit instead. No variations, no embellishments, no emoji on any of them. Pick one and only one; all are session-end markers so the transcript shows what actually happened.
 
 ## Failure handling
 
