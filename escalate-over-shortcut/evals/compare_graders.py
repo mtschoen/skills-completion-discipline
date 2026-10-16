@@ -16,8 +16,8 @@ plus the list of runs where bucketing differed.
 import argparse
 import json
 import sys
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 
 def re_bucket(record: dict, drop_llm: bool) -> tuple[str, bool]:
@@ -97,7 +97,7 @@ def aggregate(by_scenario: dict) -> dict:
         total = 0
         passed_count = 0
         outcomes = defaultdict(int)
-        for scenario, by_config in by_scenario.items():
+        for by_config in by_scenario.values():
             for r in by_config[config]:
                 total += 1
                 outcomes[r["outcome"]] += 1

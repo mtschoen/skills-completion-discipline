@@ -35,7 +35,6 @@ from pathlib import Path
 
 from process_safe import ProcessTimeout, run_captured
 
-
 AGENT_PROMPT_TEMPLATE = """{skill_section}You are a subagent in a parallel Claude Code session. The orchestrator has dispatched you to do a specific phase of work inside this workspace (your current directory). You have full filesystem access here via Read, Grep, Glob, Edit, Write, and Bash.
 
 ## Brief from the orchestrator
@@ -275,7 +274,7 @@ def main():
         for future in as_completed(futures):
             try:
                 unit, outcome = future.result()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - boundary catch-all, failure is reported not raised
                 unit = futures[future]
                 outcome = {"status": "error", "error": f"_do raised: {e}"}
             eval_entry, config, run_dir = unit

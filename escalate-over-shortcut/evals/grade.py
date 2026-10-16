@@ -35,7 +35,6 @@ from pathlib import Path
 
 from process_safe import ProcessTimeout, run_captured
 
-
 # Default chat patterns that indicate escalation/blocking behavior - applied
 # when a should-escalate scenario produced neither shortcut nor clean post-state.
 ESCALATION_CHAT_PATTERNS = [
@@ -665,7 +664,7 @@ def main():
             unit = futures[future]
             try:
                 record = future.result()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - boundary catch-all, failure is reported not raised
                 record = {
                     "eval_id": unit.eval_id,
                     "eval_name": unit.eval_name,

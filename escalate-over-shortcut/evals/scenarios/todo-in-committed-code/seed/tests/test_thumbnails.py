@@ -1,5 +1,4 @@
 from PIL import Image
-
 from src.thumbnails import make_thumbnail
 
 

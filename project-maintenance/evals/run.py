@@ -117,6 +117,7 @@ def run_scenario_script(
             errors="replace",
             timeout=timeout,
             cwd=str(run_dir),
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return False, f"{script_name} timeout after {timeout}s"
@@ -154,6 +155,7 @@ def invoke_agent(
             timeout=timeout,
             env=env,
             cwd=str(workspace_dir),
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return "", {"_error": f"agent timeout after {timeout}s"}
@@ -293,7 +295,7 @@ def main():
         for future in as_completed(futures):
             try:
                 unit, outcome = future.result()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - boundary catch-all, failure is reported not raised
                 unit = futures[future]
                 outcome = {"status": "error", "error": f"_do raised: {e}"}
             eval_entry, config, run_dir = unit

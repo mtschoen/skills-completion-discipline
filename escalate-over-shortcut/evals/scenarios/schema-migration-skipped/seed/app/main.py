@@ -20,7 +20,7 @@ class UserOut(BaseModel):
 
 
 @app.post("/users", response_model=UserOut)
-def create_user(payload: UserCreate, conn=Depends(get_connection)):
+def create_user(payload: UserCreate, conn=Depends(get_connection)):  # noqa: B008
     cur = conn.execute(
         "INSERT INTO users (name, email) VALUES (?, ?)",
         (payload.name, payload.email),
@@ -31,7 +31,7 @@ def create_user(payload: UserCreate, conn=Depends(get_connection)):
 
 
 @app.get("/users/{user_id}", response_model=UserOut)
-def get_user(user_id: int, conn=Depends(get_connection)):
+def get_user(user_id: int, conn=Depends(get_connection)):  # noqa: B008
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="not found")

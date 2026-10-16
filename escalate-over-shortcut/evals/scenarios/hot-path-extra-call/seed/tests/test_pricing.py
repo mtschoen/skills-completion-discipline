@@ -1,7 +1,6 @@
 """Tests for price_cart."""
 
 import pytest
-
 from src.pricing import RateService, price_cart
 
 

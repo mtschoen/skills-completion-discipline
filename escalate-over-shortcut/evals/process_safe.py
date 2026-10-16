@@ -83,7 +83,7 @@ def run_captured(
             out, err = process.communicate()
             captured["out"] = out or ""
             captured["err"] = err or ""
-        except Exception:  # pragma: no cover - defensive; pipe vanished mid-read
+        except Exception:  # pragma: no cover - defensive; pipe vanished mid-read  # noqa: BLE001, S110
             pass
 
     thread = threading.Thread(target=reader, daemon=True)
@@ -119,7 +119,7 @@ def run_inherit(command: list[str]) -> int:
     where the operator should see live output and nothing is captured - so the
     bpo-31935 pipe-inheritance hang does not apply.
     """
-    return subprocess.run(command).returncode
+    return subprocess.run(command, check=False).returncode
 
 
 def spawn_detached(

@@ -35,7 +35,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
-
 # Which grader produced a RubricMatch: deterministic pattern matching, or a
 # judge call to an LLM. Only llm_judge indicators use the latter.
 GRADER_REGEX = "regex"
@@ -153,6 +152,7 @@ def _check_llm_judge(
             errors="replace",
             timeout=LLM_JUDGE_TIMEOUT_SECONDS,
             env=env,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return RubricMatch(
@@ -611,7 +611,7 @@ def main():
             unit = futures[future]
             try:
                 record = future.result()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - boundary catch-all, failure is reported not raised
                 record = {
                     "eval_id": unit.eval_id,
                     "eval_name": unit.eval_name,

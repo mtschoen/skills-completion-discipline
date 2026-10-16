@@ -3,11 +3,10 @@
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.db import get_connection
 from app.main import app
 from app.schema import ensure_dev_schema
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
