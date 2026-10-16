@@ -263,7 +263,9 @@ def test_launch_chain_successor_prompt_file_handling(
 RESUME_PROMPT_TEMPLATE = (
     'You are link {next_link} of session chain "{chain_name}". Before anything else, read the '
     'handoff {handoff_path} in full, then continue from its "Next steps, '
-    'in order". Honor every ruling under "Inherited owner rulings" without reopening any of them, '
+    'in order". After writing your own complete handoff, delete that handoff and its '
+    ".resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). "
+    'Honor every ruling under "Inherited owner rulings" without reopening any of them, '
     "including those made in earlier links. Keep the standing "
     "routing rules: dispatch subagents for well-specified lanes and route "
     "sustained volume to external harnesses (codex, opencode, agy, kimi, local "

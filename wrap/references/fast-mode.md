@@ -2,7 +2,7 @@
 
 How each interactive gate resolves when wrap runs as `/wrap --fast`. The two hard invariants (no questions; safe, additive actions only) and the over-share posture are in SKILL.md; this table is the per-phase resolution.
 
-Chain mode behaves the same with `--fast`: printing the successor's launch command is a safe, additive action; the handoff and stop rules in `chain.md` still apply.
+Chain mode behaves the same with `--fast`: printing the successor's launch command is a safe, additive action; the handoff and stop rules in `chain.md` still apply, except that predecessor handoff and prompt deletion is deferred to preserve the no-deletion guarantee.
 
 The "interactive default" column is what an unmappable answer resolves to in a normal run (SKILL.md principle 8), not merely what fast mode does. The two columns agree on purpose: fast mode is the interactive default with the asking removed. If you change one, change the other.
 
@@ -17,4 +17,4 @@ The "interactive default" column is what an unmappable answer resolves to in a n
 | 3c - hygiene | approve deletes / junk clear | extract loose threads to memory; **delete nothing** (junk default is keep anyway); list findings in the summary |
 | 3d - wrap's own commit (#1) | automatic | unchanged: auto-commit wrap's own writes per repo (still no push) |
 | 3d - user work (#2) | prompt p/c/s/l/b; default **l** (leave as-is) | **leave as-is**: never auto-commit or push pre-existing user changes; report them as leftovers |
-| 4 - summary | always runs | always runs; state that `--fast` ran and enumerate every deferred destructive action plus the untouched user work |
+| 4 - summary | always runs | always runs; state that `--fast` ran and enumerate every deferred destructive action (including deferred predecessor handoff deletion) plus the untouched user work |

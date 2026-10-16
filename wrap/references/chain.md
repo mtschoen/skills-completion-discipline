@@ -13,7 +13,7 @@ The owner can say "wrap and keep going in a fresh session", "wrap and continue",
 
 ## Handoff contract
 
-Write `~/.claude/handoffs/YYYY-MM-DD-<slug>.md`. Give each link a distinct file (include the chain name and link number in `<slug>`) so the chain's handoffs form its ledger. Start with this YAML header, filling the placeholders and choosing one status:
+Write `~/.claude/handoffs/YYYY-MM-DD-<slug>.md`. Give each link a distinct file (include the chain name and link number in `<slug>`). The chain's ledger is the newest handoff plus the forge (PRs, issues, commits), not a pile of files. Start with this YAML header, filling the placeholders and choosing one status:
 
 ```yaml
 ---
@@ -34,6 +34,10 @@ Start a new chain at link 1 with a null predecessor. A resumed link keeps the ch
 - An owner-started launch records `launch: owner-started` with `session_id: null`, because the session has not started yet and remains pending until the owner runs the printed command.
 - A windowed launch opens a console window, confirms startup via `claude agents --json`, and records `launch: window` with the confirmed successor's full `session_id`.
 
+**Consume the predecessor.** Once this link has read the predecessor handoff in full and written its own complete handoff, it deletes the predecessor handoff (the `predecessor_handoff` path) and the predecessor's sibling `.resume-prompt.txt`. Order matters: write the new handoff, verify it exists and parses, then delete the old files; never delete first. The newest handoff is self-contained by contract, so nothing is lost. A link that ends `blocked` or `done` deletes its predecessor the same way, and its own handoff remains as the chain's terminal record. Link 1 has no predecessor and deletes nothing.
+
+Fast mode (`--fast`) defers predecessor deletion: SKILL.md and `references/fast-mode.md` guarantee that fast mode is additive only and never deletes files. Under `--fast`, leave the predecessor handoff and prompt files untouched and report the deferred file cleanup in the Phase 4 summary.
+
 Omit the `successor` block for `blocked`, `done` and a cap stop. If window launch or confirmation fails, fall back to `launch: owner-started` with `session_id: null` and print the fallback command.
 
 On a repeated wrap:
@@ -43,9 +47,10 @@ On a repeated wrap:
 
 Include every required section, writing "None" where empty:
 
-- **Inherited owner rulings (do not reopen):** every ruling copied forward from the predecessor handoff's own inherited block plus its rulings of that session, then this session's new rulings, each tagged with the link that made it ("None" only on link 1 with no rulings). Copy forward in full and never summarize them away, so the newest handoff is self-contained and no ruling disappears after two or more links.
+- **Done this link:** what this link completed, with the forge or memory record of each item ("None" where empty)
+- **Inherited owner rulings (do not reopen):** every ruling that still constrains future work, from the predecessor handoff's inherited block, its rulings of that session, and this session's new rulings, copied verbatim and each tagged with the link that made it ("None" only when no ruling is live). Drop a ruling once the work it governed is complete and verified AND its record exists on the forge (merged PR, closed issue, commit) or in a memory note; name that record in this link's "Done this link" section when dropping it. Rulings about standing policy (how to run things, what never to do) are always carried. Never summarize a carried ruling, so the newest handoff is self-contained.
 - **Questions waiting for the owner (one per turn, through the question widget)**
-- **Next steps, in order**
+- **Next steps, in order.** Every item must retain an explicit unchanged-carry count tag: `[carried: 0]` when newly introduced or when its scope is substantively modified; `[carried: <count + 1>]` when copied forward without material change from the predecessor handoff. An item carried unchanged for two links (`[carried: 2]`) reaches the limit: this link must either complete it (recorded in "Done this link"), convert it to a tracked forge issue, or drop it with a stated reason in the handoff; it cannot ride a third time (`[carried: 3]` is prohibited). Before deleting the predecessor handoff, the successor must inspect the predecessor's tags, update unchanged items to `[carried: <count + 1>]` (or `[carried: 0]` if substantively modified), enforce retirement on any item that reached the two-link limit, and verify that all carried items in the new handoff comply with the limit.
 - **How to run the lanes:** which work went to subagents and which to external harnesses (codex, opencode, agy, kimi, local qwen), with the exact invocations that worked and what bit
 - **Worktrees and in-flight work (PRs, background jobs)**
 
@@ -60,7 +65,8 @@ Use this fixed template verbatim, substituting the chain name, link numbers and 
 ```text
 You are link <n+1> of session chain "<chain>". Before anything else, read the
 handoff <absolute handoff path> in full, then continue from its "Next steps,
-in order". Honor every ruling under "Inherited owner rulings" without reopening any of them, including those made in earlier links. Keep the standing
+in order". After writing your own complete handoff, delete that handoff and its
+.resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). Honor every ruling under "Inherited owner rulings" without reopening any of them, including those made in earlier links. Keep the standing
 routing rules: dispatch subagents for well-specified lanes and route
 sustained volume to external harnesses (codex, opencode, agy, kimi, local
 qwen) as the handoff's "How to run the lanes" describes; the orchestrator

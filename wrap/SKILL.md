@@ -32,7 +32,7 @@ The session-closing ritual for a coding agent session. Performs two equally-mand
 
 5. **Extract loose threads before deleting anything.** Any plan, scratch file, or stale memory being removed must first be scanned for "we should fix X later" / "Y might come up again" thoughts, which go to durable destinations *before* the source is removed. See `references/plan-classification.md`.
 
-6. **Current-state driven.** Each invocation asks "what's true right now" and acts accordingly. Running `/wrap` twice in a row is safe - the second run finds nothing the first one already cleaned. In chain mode, handoff files carry the chain ledger; check the recorded successor before launching another.
+6. **Current-state driven.** Each invocation asks "what's true right now" and acts accordingly. Running `/wrap` twice in a row is safe - the second run finds nothing the first one already cleaned. In chain mode, the newest handoff plus the forge carry the chain ledger (each link deletes its predecessor's handoff, deferred under `--fast`); check the recorded successor before launching another.
 
 7. **Verify before delete.** Every finding surfaces with evidence, a recommendation, a confidence level, and the exact action on approval. The user approves a batch of findings at once, not item-by-item, unless explicitly described otherwise below.
 

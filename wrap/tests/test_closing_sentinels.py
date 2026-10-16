@@ -52,9 +52,34 @@ def test_chain_reference_ends_a_launching_wrap_with_the_chained_sentinel():
     assert CHAINED_SENTINEL in CHAIN_TEXT
 
 
-def test_chain_reference_keeps_completed_sentinel_for_stopped_chains():
+@pytest.mark.parametrize(
+    ("case_identifier", "expected_substring"),
+    [
+        (
+            "stopped-chains-completed-sentinel",
+            "no successor and ends with the completed sentinel",
+        ),
+        (
+            "finding-1-next-step-carry-count-tracking",
+            "[carried: <count + 1>]",
+        ),
+        (
+            "finding-2-fast-mode-defer-predecessor-deletion",
+            "Fast mode (`--fast`) defers predecessor deletion",
+        ),
+    ],
+    ids=[
+        "stopped-chains-completed-sentinel",
+        "finding-1-next-step-carry-count-tracking",
+        "finding-2-fast-mode-defer-predecessor-deletion",
+    ],
+)
+def test_chain_reference_keeps_completed_sentinel_for_stopped_chains(
+    case_identifier: str,
+    expected_substring: str,
+) -> None:
     assert COMPLETED_SENTINEL in CHAIN_TEXT
-    assert "no successor and ends with the completed sentinel" in CHAIN_TEXT
+    assert expected_substring in CHAIN_TEXT
 
 
 @pytest.mark.parametrize(
