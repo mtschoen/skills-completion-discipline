@@ -1,0 +1,6 @@
+# Shell scripts must stay LF: Git for Windows ships core.autocrlf=true, and a
+# CRLF audit.sh fails in Git Bash with ": command not found".
+*.sh text eol=lf
+# Windows batch files need CRLF for label and multi-line parsing.
+*.bat text eol=crlf
+*.cmd text eol=crlf
