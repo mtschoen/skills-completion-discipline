@@ -1,6 +1,6 @@
 # Completion discipline
 
-Seven skills that decide what an agent owes the work at the point it stops.
+Eight skills that decide what an agent owes the work at the point it stops.
 
 Coding agents are systematically overconfident about being finished. They
 report success from the absence of an error rather than the presence of
@@ -26,6 +26,7 @@ and asks a question that has to be answered before the work can be handed over.
 | [`reconcile-tasks`](reconcile-tasks/) | Does the plan still describe what actually shipped? |
 | [`wrap`](wrap/) | Is the session actually closed out, or just abandoned? |
 | [`project-maintenance`](project-maintenance/) | What did the work leave behind in the repo? |
+| [`machine-maintenance`](machine-maintenance/) | What did the sessions leave behind on the whole machine? |
 
 One companion is a Claude Code mod rather than a skill: [`idle-wrap`](idle-wrap/)
 runs `/wrap --fast` in a session that has sat idle near the prompt-cache cliff,
@@ -35,11 +36,12 @@ They compose deliberately, and in that order. The first four settle the change
 itself: `smoke-test` proves it runs, `maintaining-full-coverage` proves it did
 not cost quality elsewhere, `docs-update` catches the prose it invalidated, and
 `escalate-over-shortcut` catches the case where the agent's own draft is a
-dressed-up workaround. The last three settle everything around it:
+dressed-up workaround. The last four settle everything around it:
 `reconcile-tasks` makes the project's written record agree with its commit
 history, `wrap` closes the session so nothing is left stranded on an unpushed
-branch, and `project-maintenance` sweeps what accumulated in the repo across
-however many sessions the work took.
+branch, `project-maintenance` sweeps what accumulated in the repo across
+however many sessions the work took, and `machine-maintenance` sweeps what
+accumulated across the host itself.
 
 Most invocations end with nothing to report. That is the healthy case. The
 value is the check, not the finding.
