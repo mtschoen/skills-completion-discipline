@@ -79,6 +79,14 @@ jobs:
       - name: wrap pytest
         working-directory: wrap
         run: pytest tests/
+      - name: machine-maintenance
+        working-directory: machine-maintenance
+        run: |
+          ruff check tests/
+          ruff format --check tests/
+      - name: machine-maintenance pytest
+        working-directory: machine-maintenance
+        run: pytest tests/
 
   shellcheck:
     runs-on: ubuntu-latest
