@@ -1,8 +1,10 @@
 {
   "name": "idle-wrap",
-  "version": "0.1.0",
-  "description": "Runs /wrap --fast in the open session when it has sat idle near the prompt-cache cliff, instead of letting idle compaction summarize it",
-  "author": { "name": "Matt Schoen" },
+  "version": "0.2.0",
+  "description": "Prompts the open session when it has sat idle near the prompt-cache cliff: resume unfinished work, or run /wrap --fast when nothing is in progress, instead of letting idle compaction summarize it",
+  "author": {
+    "name": "Matt Schoen"
+  },
   "userConfig": {
     "idleMinutes": {
       "type": "string",
@@ -19,8 +21,8 @@
     "prompt": {
       "type": "string",
       "title": "Prompt to submit",
-      "description": "Submitted as the user's own words once the session is idle long enough.",
-      "default": "/wrap --fast"
+      "description": "Submitted as the user's own words once the session is idle long enough. Plain text goes to the model (the default asks it to resume unfinished work, else wrap); a slash command runs as typed.",
+      "default": "Idle check from the idle-wrap mod: this session has sat idle long enough that it is about to be wrapped. First decide whether you were still in the middle of something when the last turn ended: a background command or subagent you were waiting on, a CI run, deploy or other external process you said you would check back on, or a next step you announced and had not started. If so, pick up exactly where you left off and finish it; do not wrap, and do not ask whether to continue. Only if nothing is in progress and nothing is left to do should you run /wrap --fast now. If this session has already been wrapped and nothing has happened since, reply with one short line and stop."
     }
   }
 }
