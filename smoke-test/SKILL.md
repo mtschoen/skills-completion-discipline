@@ -1,9 +1,13 @@
 ---
 name: smoke-test
-description: "Use when you finish implementing a feature, fixing a bug, refactoring, or changing configuration - any change that affects runtime behavior - before saying 'done', 'complete', 'finished', 'all set', 'ready to commit', or any variation, even if you're confident the change is correct. If you changed code, you smoke test it. Does NOT apply when the deliverable is prose (plan, spec, brainstorm doc, README, memory note, skill text): nothing runs, so say so and move on."
+description: "Use when finishing a feature, bugfix, refactor or configuration change affecting runtime behavior, before any completion claim, even if confident it is correct. Runs the changed artifact to verify it builds and does what was asked; prose-only deliverables conclude N/A with nothing to run."
 ---
 
 # Smoke Test
+
+## Applicability
+
+Use when you finish implementing a feature, fixing a bug, refactoring, or changing configuration - any change that affects runtime behavior - before saying 'done', 'complete', 'finished', 'all set', 'ready to commit', or any variation, even if you're confident the change is correct. If you changed code, you smoke test it. Does NOT apply when the deliverable is prose (plan, spec, brainstorm doc, README, memory note, skill text): nothing runs, so say so and move on.
 
 > **Modes:** Default - run a smoke test on your changes (everything below). `smoke-test --init` - instead, author a `SMOKE.md` for the current project; see [Creating a SMOKE.md](#creating-a-smokemd).
 

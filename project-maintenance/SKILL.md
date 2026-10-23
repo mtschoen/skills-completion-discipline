@@ -1,9 +1,13 @@
 ---
 name: project-maintenance
-description: "Use when the user asks for a maintenance pass, cleanup, end-of-session tidy-up, or health check on a repo. Triggers: 'clean up this project', 'run maintenance', 'end of session cleanup', fleet sweeps that follow project-tracker.find_stale_maintenance. Researched and interactive; every action is logged."
+description: "Use when asked for a repo maintenance pass, cleanup, end-of-session tidy-up or health check, or for fleet sweeps after project-tracker.find_stale_maintenance. Researches each finding for interactive approval or parent review and logs every action in the maintenance record."
 ---
 
 # Project Maintenance
+
+## Applicability
+
+Use when the user asks for a maintenance pass, cleanup, end-of-session tidy-up, or health check on a repo. Triggers: 'clean up this project', 'run maintenance', 'end of session cleanup', fleet sweeps that follow project-tracker.find_stale_maintenance. Researched and interactive; every action is logged.
 
 End-of-session cleanup for a single repo. Works in two modes:
 

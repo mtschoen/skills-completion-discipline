@@ -1,9 +1,13 @@
 ---
 name: reconcile-tasks
-description: "Use when the user asks the agent to reconcile a project's PLAN.md/TODO.md against its recent git history - e.g. 'what's actually done in project-tracker?', 'audit completed work for this project', 'any tasks I should check off?', 'reconcile the plan with what shipped'. Uses the project-tracker MCP server when available; otherwise reads PLAN.md/TODO.md and git log directly. Per-project, not fleet-wide."
+description: "Use when asked to audit completed work, check off tasks, or reconcile one project's PLAN.md/TODO.md with recent git history. Matches tasks to commits using project-tracker MCP when available or direct file and git-log reads, and presents evidence for approved task updates."
 ---
 
 # Reconciling Tasks Against Git History
+
+## Applicability
+
+Use when the user asks the agent to reconcile a project's PLAN.md/TODO.md against its recent git history - e.g. 'what's actually done in project-tracker?', 'audit completed work for this project', 'any tasks I should check off?', 'reconcile the plan with what shipped'. Uses the project-tracker MCP server when available; otherwise reads PLAN.md/TODO.md and git log directly. Per-project, not fleet-wide.
 
 When the user asks for an audit of completed-but-unchecked tasks, your job is
 to look at one project's unchecked tasks and recent commit history together,
@@ -56,7 +60,7 @@ and decide:
 | `cache_refreshed: true` | Mention "freshly refreshed from git" in your findings. High confidence. |
 | `cache_age_seconds` < 300 (5 min) | Data is current. No freshness caveat needed. |
 | `cache_age_seconds` between 300 and max_cache_age_seconds, `cache_refreshed: false` | Data is slightly stale. Mention it briefly. |
-| `cache_age_seconds` > max_cache_age_seconds and `cache_refreshed: false` | **Refresh was attempted but failed.** Surface this prominently: "⚠️ I tried to refresh the `git-wizard` cache but it failed, so this audit is running against a cache that's N minutes old. Results may miss recently-completed work." Then suggest the user run `project-tracker refresh-git` manually, or that you retry with `max_cache_age_seconds=0` once they've confirmed `git-wizard` is on PATH. |
+| `cache_age_seconds` > max_cache_age_seconds and `cache_refreshed: false` | **Refresh was attempted but failed.** Surface this prominently: "Warning: I tried to refresh the `git-wizard` cache but it failed, so this audit is running against a cache that's N minutes old. Results may miss recently-completed work." Then suggest the user run `project-tracker refresh-git` manually, or that you retry with `max_cache_age_seconds=0` once they've confirmed `git-wizard` is on PATH. |
 | No `recent_commits` at all | Tell the user there's no history to reconcile against and stop. Don't guess from filesystem state. |
 
 If the user is auditing a project they just worked in, proactively suggest
@@ -117,7 +121,7 @@ project-tracker can apply four distinct operations to a task in PLAN.md:
 
 1. **Check** - mark as done. Use when the commits clearly describe
    completion of exactly what the task says. Implemented via the
-   `toggle_task` MCP tool (which only toggles `[ ] ↔ [x]`).
+   `toggle_task` MCP tool (which only toggles `[ ] <-> [x]`).
 
 2. **Cross out (abandoned)** - wrap the title in `~~...~~` strikethrough,
    leaving the checkbox unchecked. Use when the task was deliberately not
@@ -143,13 +147,13 @@ leave the rest"), or "none."
 
 For each approved operation, use the right tool:
 
-- **Check** → `mcp__project-tracker__toggle_task(name=<project_name>,
+- **Check** -> `mcp__project-tracker__toggle_task(name=<project_name>,
   source_file=<source_file_absolute>, line_number=<line_number>)`.
   Note the ABSOLUTE path (use `source_file_absolute` from the MCP
   response, not `source_file`). Fallback without the MCP server: Edit
   tool on the file - change `- [ ]` to `- [x]` on that exact line.
 
-- **Cross out** → Edit tool on the PLAN.md file. Wrap the task title in
+- **Cross out** -> Edit tool on the PLAN.md file. Wrap the task title in
   `~~...~~`, preserving the `- [ ]` checkbox prefix. Example:
 
   ```text
@@ -162,7 +166,7 @@ For each approved operation, use the right tool:
   - [ ] ~~**Heuristic pass**: for each unchecked task...~~
   ```
 
-- **Add note** → Edit tool on the PLAN.md file. Insert a blank line
+- **Add note** -> Edit tool on the PLAN.md file. Insert a blank line
   and an indented italicized note immediately below the task line.
   Example:
 
@@ -172,7 +176,7 @@ For each approved operation, use the right tool:
     *Note (YYYY-MM-DD): <explanation>*
   ```
 
-- **Leave alone** → no-op.
+- **Leave alone** -> no-op.
 
 ### 8. Confirm what changed
 

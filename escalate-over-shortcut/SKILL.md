@@ -1,9 +1,13 @@
 ---
 name: escalate-over-shortcut
-description: "Use when about to commit a draft solution that suppresses a problem (silent fallbacks like || true, [ExcludeFromCodeCoverage] on throw/stub code, lowered thresholds), pulls state from somewhere illegitimate (binaries from an unrelated app's install dir, prod wiring under tests/, cross-worktree file copies), adds configurability with no production caller (hard-coded values keyed to one platform, test-only knobs), ships a placeholder/no-op (return [], empty handler) as the answer, or leaves rationale-free drift (mid-phase dependencies, TODO/FIXME, unexplained changes). Agent-to-self companion to pushback; fires on the agent's own draft, not on the user's request. Most invocations end \"no, not a shortcut, ship\" - that's healthy; the value is the check."
+description: "Use when your own draft suppresses a problem, takes state from illegitimate sources, adds test-only knobs, ships placeholders/no-ops, or leaves unexplained drift before commit. Checks shortcut-shaped solutions and escalates BLOCKED with the gap and alternatives instead of shipping them."
 ---
 
 # Escalate Over Shortcut
+
+## Applicability
+
+Use when about to commit a draft solution that suppresses a problem (silent fallbacks like || true, [ExcludeFromCodeCoverage] on throw/stub code, lowered thresholds), pulls state from somewhere illegitimate (binaries from an unrelated app's install dir, prod wiring under tests/, cross-worktree file copies), adds configurability with no production caller (hard-coded values keyed to one platform, test-only knobs), ships a placeholder/no-op (return [], empty handler) as the answer, or leaves rationale-free drift (mid-phase dependencies, TODO/FIXME, unexplained changes). Agent-to-self companion to pushback; fires on the agent's own draft, not on the user's request. Most invocations end "no, not a shortcut, ship" - that's healthy; the value is the check.
 
 ## Why this skill exists
 

@@ -1,9 +1,13 @@
 ---
 name: docs-update
-description: "Use after you've finished and verified a change (smoke test passed, or smoke-test concluded N/A for a prose-only change) and have no further edits planned - before declaring work done, committing, pushing to main, or opening a PR. Checks whether the change made any documentation lie: README, AGENTS.md, other in-repo docs, inline doc comments. Most invocations end 'no docs affected' - that's healthy; the value is the check. Does NOT fire per-edit mid-work."
+description: "Use when a change is verified (smoke test passed or prose-only N/A), no edits remain, and you are about to declare done, commit, push to main, or open a PR. Checks README, AGENTS.md, other repo docs and inline comments for drift; it runs once after the change settles."
 ---
 
 # Docs Update
+
+## Applicability
+
+Use after you've finished and verified a change (smoke test passed, or smoke-test concluded N/A for a prose-only change) and have no further edits planned - before declaring work done, committing, pushing to main, or opening a PR. Checks whether the change made any documentation lie: README, AGENTS.md, other in-repo docs, inline doc comments. Most invocations end 'no docs affected' - that's healthy; the value is the check. Does NOT fire per-edit mid-work.
 
 ## The Problem This Solves
 
