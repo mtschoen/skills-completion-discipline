@@ -1,4 +1,7 @@
+"""End-to-end launcher script and multi-shell printed-command round-trip tests (exceeds 500 lines to keep POSIX, PowerShell, and cmd.exe subprocess harnesses in one module)."""
+
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -150,36 +153,7 @@ def test_launch_chain_successor_prompt_file_handling(
         mock_binary_directory.mkdir()
 
         invocation_log = temporary_root / "invoked_arguments.txt"
-
-        if os.name == "nt":
-            mock_claude_command_script = mock_binary_directory / "claude.cmd"
-            mock_claude_command_script.write_text(
-                "@echo off\r\n"
-                "chcp 65001 >nul\r\n"
-                "setlocal DisableDelayedExpansion\r\n"
-                ":loop\r\n"
-                'if "%~1"=="" goto done\r\n'
-                'set "ARGUMENT=%~1"\r\n'
-                "setlocal EnableDelayedExpansion\r\n"
-                f'>>"{invocation_log}" echo(!ARGUMENT!\r\n'
-                "endlocal\r\n"
-                "shift\r\n"
-                "goto loop\r\n"
-                ":done\r\n",
-                encoding="utf-8",
-            )
-            mock_claude_batch_script = mock_binary_directory / "claude.bat"
-            mock_claude_batch_script.write_text(
-                mock_claude_command_script.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-        else:
-            mock_claude_shell_script = mock_binary_directory / "claude"
-            mock_claude_shell_script.write_text(
-                f'#!/bin/sh\nprintf "%s\\n" "$@" > "{invocation_log}"\n',
-                encoding="utf-8",
-            )
-            mock_claude_shell_script.chmod(0o755)
+        write_mock_claude_executable(mock_binary_directory, invocation_log)
 
         safe_directories = get_safe_child_path_directories(powershell_executable)
         safe_system_path = os.pathsep.join(safe_directories)
@@ -261,19 +235,63 @@ def test_launch_chain_successor_prompt_file_handling(
 
 
 RESUME_PROMPT_TEMPLATE = (
-    'You are link {next_link} of session chain "{chain_name}". Before anything else, read the '
-    'handoff {handoff_path} in full, then continue from its "Next steps, '
-    'in order". After writing your own complete handoff, delete that handoff and its '
+    "You are link {next_link} of session chain {chain_name}. Before anything else, read the "
+    "handoff {handoff_path} in full, then continue from its section Next steps, "
+    "in order. After writing your own complete handoff, delete that handoff and its "
     ".resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). "
-    'Honor every ruling under "Inherited owner rulings" without reopening any of them, '
+    "Honor every ruling under Inherited owner rulings without reopening any of them, "
     "including those made in earlier links. Keep the standing "
     "routing rules: dispatch subagents for well-specified lanes and route "
     "sustained volume to external harnesses (codex, opencode, agy, kimi, local "
-    'qwen) as the handoff\'s "How to run the lanes" describes; the orchestrator '
+    "qwen) as the handoff section How to run the lanes describes; the orchestrator "
     "seat does triage, briefs, review and delicate steps only. Ask owner questions "
     "one per turn through the question widget. When the wrap nudge fires and you "
     "reach a natural stopping point, or the owner asks, wrap and continue the chain "
     "as link {future_link}."
+)
+
+
+def write_mock_claude_executable(
+    mock_binary_directory: Path,
+    invocation_log: Path,
+) -> None:
+    if os.name == "nt":
+        mock_claude_command_script = mock_binary_directory / "claude.cmd"
+        mock_claude_command_script.write_text(
+            "@echo off\r\n"
+            "chcp 65001 >nul\r\n"
+            "setlocal DisableDelayedExpansion\r\n"
+            ":loop\r\n"
+            'if "%~1"=="" goto done\r\n'
+            'set "ARGUMENT=%~1"\r\n'
+            "setlocal EnableDelayedExpansion\r\n"
+            f'>>"{invocation_log}" echo(!ARGUMENT!\r\n'
+            "endlocal\r\n"
+            "shift\r\n"
+            "goto loop\r\n"
+            ":done\r\n",
+            encoding="utf-8",
+        )
+        mock_claude_batch_script = mock_binary_directory / "claude.bat"
+        mock_claude_batch_script.write_text(
+            mock_claude_command_script.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    else:
+        mock_claude_shell_script = mock_binary_directory / "claude"
+        mock_claude_shell_script.write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "$@" > "{invocation_log}"\n',
+            encoding="utf-8",
+        )
+        mock_claude_shell_script.chmod(0o755)
+
+
+POWERSHELL_SINGLE_QUOTE_CHARACTERS = (
+    "'",
+    "\u2018",
+    "\u2019",
+    "\u201a",
+    "\u201b",
 )
 
 
@@ -282,13 +300,47 @@ def quote_posix_argument(argument: str) -> str:
     return "'" + argument.replace("'", "'\\''") + "'"
 
 
+def quote_powershell_argument(argument: str) -> str:
+    """Quotes an argument for PowerShell using literal single-quoting."""
+    escaped_argument = argument
+    for quote_character in POWERSHELL_SINGLE_QUOTE_CHARACTERS:
+        escaped_argument = escaped_argument.replace(
+            quote_character,
+            quote_character * 2,
+        )
+    return "'" + escaped_argument + "'"
+
+
+def quote_cmd_argument(argument: str) -> str:
+    """Quotes an argument for cmd.exe with one pair of double quotes."""
+    if any(character in argument for character in ('"', "%", "!")):
+        raise ValueError(
+            "A cmd.exe double-quoted argument must not contain '\"', '%', or '!'; "
+            "use the .resume-prompt.txt prompt-file fallback instead"
+        )
+    if argument.endswith("\\"):
+        raise ValueError("A cmd.exe argument must not end in a backslash")
+    return '"' + argument + '"'
+
+
+RECEIVING_SHELL_QUOTERS = {
+    "posix": quote_posix_argument,
+    "powershell": quote_powershell_argument,
+    "cmd": quote_cmd_argument,
+}
+
+
 def format_printed_launch_command(
     chain_name: str,
     next_link: int,
     model: str,
     handoff_path: str,
+    receiving_shell: str = "posix",
 ) -> tuple[str, str]:
-    """Formats the collapsed resume prompt and single-quoted POSIX launch command."""
+    """Formats the collapsed resume prompt and the launch command for the receiving shell."""
+    if receiving_shell not in RECEIVING_SHELL_QUOTERS:
+        raise ValueError(f"Unsupported receiving shell: {receiving_shell!r}")
+    quote_argument = RECEIVING_SHELL_QUOTERS[receiving_shell]
     prompt = RESUME_PROMPT_TEMPLATE.format(
         chain_name=chain_name,
         next_link=next_link,
@@ -296,7 +348,7 @@ def format_printed_launch_command(
         future_link=next_link + 1,
     )
     collapsed_prompt = " ".join(prompt.split())
-    quoted_prompt = quote_posix_argument(collapsed_prompt)
+    quoted_prompt = quote_argument(collapsed_prompt)
     command = f"claude -n {chain_name}-{next_link} --model {model} {quoted_prompt}"
     return collapsed_prompt, command
 
@@ -337,7 +389,7 @@ def find_posix_shell_executable() -> str | None:
         ),
         (
             "finding-1-apostrophe-single-quote",
-            "owner's-handoff",
+            "O'Brien/owner's-handoff",
         ),
     ],
     ids=[
@@ -362,7 +414,10 @@ def test_printed_command_posix_quoting_round_trip(
         next_link=2,
         model="opus",
         handoff_path=handoff_path,
+        receiving_shell="posix",
     )
+    if "'" in collapsed_prompt:
+        assert "'\\''" in printed_command
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_root = Path(temporary_directory)
@@ -422,3 +477,197 @@ def test_printed_command_posix_quoting_round_trip(
             f"Expected:\n{expected_arguments}\n"
             f"Received:\n{invoked_arguments}"
         )
+
+
+CHAIN_REFERENCE_PATH = Path(__file__).resolve().parents[1] / "references" / "chain.md"
+CHAIN_PLACEHOLDERS = {
+    "<n+1>": "{next_link}",
+    "<n+2>": "{future_link}",
+    "<chain>": "{chain_name}",
+    "<absolute handoff path>": "{handoff_path}",
+}
+
+
+def read_resume_prompt_template_from_reference() -> str:
+    """Returns the fenced text block directly under the Resume prompt heading."""
+    reference_text = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
+    match = re.search(
+        r"^## Resume prompt[^\n]*\n.*?^```text\r?\n(.*?)^```",
+        reference_text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match, "Resume prompt fenced block not found in chain.md"
+    return match.group(1)
+
+
+def test_resume_prompt_template_has_no_quote_characters() -> None:
+    reference_text = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
+    reference_template = read_resume_prompt_template_from_reference()
+    for forbidden_character in ('"', "`", *POWERSHELL_SINGLE_QUOTE_CHARACTERS):
+        assert forbidden_character not in reference_template, (
+            f"chain.md resume prompt contains {forbidden_character!r}"
+        )
+    assert not reference_template.rstrip().endswith("\\")
+
+    normalised_reference = " ".join(reference_template.split())
+    for placeholder, replacement in CHAIN_PLACEHOLDERS.items():
+        normalised_reference = normalised_reference.replace(placeholder, replacement)
+    assert normalised_reference == " ".join(RESUME_PROMPT_TEMPLATE.split())
+
+    assert "receiving shell" in reference_text
+    assert "'\\''" in reference_text
+    assert "''" in reference_text
+    for code_point_label in ("U+2018", "U+2019", "U+201A", "U+201B"):
+        assert code_point_label in reference_text
+    assert "nothing inside the prompt is escaped" not in reference_text
+
+    for unsafe_cmd_fragment in (
+        'quote"character',
+        "%USERPROFILE%",
+        "!DELAYED!",
+        "trailing\\",
+    ):
+        with pytest.raises(ValueError):
+            quote_cmd_argument(unsafe_cmd_fragment)
+
+
+@pytest.mark.parametrize(
+    ("receiving_shell", "handoff_path_component"),
+    [
+        ("powershell", "plain"),
+        ("powershell", r"O'Brien\owner's-handoff"),
+        ("powershell", "O\u2018Brien\\owner\u2018s-handoff"),
+        ("powershell", "O\u2019Brien\\owner\u2019s-handoff"),
+        ("powershell", "O\u201aBrien\\owner\u201as-handoff"),
+        ("powershell", "O\u201bBrien\\owner\u201bs-handoff"),
+        ("powershell", "O\u2018$(Write-Output INJECTED)\u2018Brien"),
+        ("powershell", "O\u2019$(Write-Output INJECTED)\u2019Brien"),
+        ("powershell", "O\u201a$(Write-Output INJECTED)\u201aBrien"),
+        ("powershell", "O\u201b$(Write-Output INJECTED)\u201bBrien"),
+        ("powershell", r"double\\backslash"),
+        (
+            "powershell",
+            "$(New-Item -ItemType File -Path CHAIN_INJECTION_MARKER)",
+        ),
+        ("powershell", "$HOME-$env:REVIEW_SUFFIX"),
+        ("cmd", "plain"),
+        ("cmd", r"O'Brien\owner's-handoff"),
+        ("cmd", r"double\\backslash"),
+        (
+            "cmd",
+            "$(New-Item -ItemType File -Path CHAIN_INJECTION_MARKER)",
+        ),
+        ("cmd", "$HOME-$env:REVIEW_SUFFIX"),
+    ],
+    ids=[
+        "powershell-plain",
+        "finding-2-powershell-apostrophe",
+        "finding-1-powershell-u2018-ordinary",
+        "finding-1-powershell-u2019-ordinary",
+        "finding-1-powershell-u201a-ordinary",
+        "finding-1-powershell-u201b-ordinary",
+        "finding-1-powershell-u2018-subexpression",
+        "finding-1-powershell-u2019-subexpression",
+        "finding-1-powershell-u201a-subexpression",
+        "finding-1-powershell-u201b-subexpression",
+        "powershell-doubled-backslash",
+        "finding-1-powershell-subexpression-injection",
+        "finding-1-powershell-variable-expansion",
+        "cmd-plain",
+        "finding-2-cmd-apostrophe",
+        "cmd-doubled-backslash",
+        "cmd-subexpression-literal",
+        "cmd-dollar-variable-literal",
+    ],
+)
+def test_printed_command_windows_quoting_round_trip(
+    receiving_shell: str,
+    handoff_path_component: str,
+) -> None:
+    handoff_path = (
+        rf"C:\Users\owner\.claude\handoffs\2026-10-14-{handoff_path_component}.md"
+    )
+    collapsed_prompt, printed_command = format_printed_launch_command(
+        chain_name="settle-and-cure",
+        next_link=2,
+        model="opus",
+        handoff_path=handoff_path,
+        receiving_shell=receiving_shell,
+    )
+
+    if receiving_shell == "powershell":
+        assert printed_command.endswith("'")
+        for quote_character in POWERSHELL_SINGLE_QUOTE_CHARACTERS:
+            if quote_character in collapsed_prompt:
+                assert quote_character * 2 in printed_command
+                assert f"'\\{quote_character}'" not in printed_command
+        powershell_executable = find_powershell_executable()
+        if not powershell_executable:
+            pytest.skip("PowerShell executable (pwsh) not found on system")
+    else:
+        assert printed_command.endswith(f'"{collapsed_prompt}"')
+        command_interpreter = shutil.which("cmd.exe") if os.name == "nt" else None
+        if not command_interpreter:
+            pytest.skip("cmd.exe not available on this system")
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        mock_binary_directory = temporary_root / "bin"
+        mock_binary_directory.mkdir()
+        invocation_log = temporary_root / "invoked_arguments.txt"
+        write_mock_claude_executable(mock_binary_directory, invocation_log)
+
+        environment = os.environ.copy()
+        environment["REVIEW_SUFFIX"] = "INJECTED_ENV_VALUE"
+
+        if receiving_shell == "powershell":
+            safe_directories = get_safe_child_path_directories(powershell_executable)
+            environment["PATH"] = os.pathsep.join(
+                [str(mock_binary_directory), *safe_directories]
+            )
+            completed_process = subprocess.run(
+                [
+                    powershell_executable,
+                    "-NoProfile",
+                    "-Command",
+                    printed_command,
+                ],
+                cwd=temporary_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        else:
+            environment["PATH"] = (
+                f"{mock_binary_directory}{os.pathsep}{environment.get('PATH', '')}"
+            )
+            completed_process = subprocess.run(
+                f'"{command_interpreter}" /d /s /c "{printed_command}"',
+                cwd=temporary_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        assert completed_process.returncode == 0, (
+            f"{receiving_shell} failed ({completed_process.returncode}):\n"
+            f"Standard output:\n{completed_process.stdout}\n"
+            f"Standard error:\n{completed_process.stderr}"
+        )
+        assert completed_process.stderr == ""
+        assert not (temporary_root / "CHAIN_INJECTION_MARKER").exists(), (
+            f"{receiving_shell} evaluated subexpression and created CHAIN_INJECTION_MARKER"
+        )
+        assert invocation_log.is_file(), (
+            f"Expected mock claude executable to be invoked by {receiving_shell}"
+        )
+        invoked_arguments = invocation_log.read_text(encoding="utf-8").splitlines()
+        assert invoked_arguments == [
+            "-n",
+            "settle-and-cure-2",
+            "--model",
+            "opus",
+            collapsed_prompt,
+        ]

@@ -65,13 +65,13 @@ Choose `continue` when actionable work remains, `blocked` when everything left n
 Use this fixed template verbatim, substituting the chain name, link numbers and absolute handoff path. Expand the home-directory form of the handoff path for the receiving session.
 
 ```text
-You are link <n+1> of session chain "<chain>". Before anything else, read the
-handoff <absolute handoff path> in full, then continue from its "Next steps,
-in order". After writing your own complete handoff, delete that handoff and its
-.resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). Honor every ruling under "Inherited owner rulings" without reopening any of them, including those made in earlier links. Keep the standing
+You are link <n+1> of session chain <chain>. Before anything else, read the
+handoff <absolute handoff path> in full, then continue from its section Next steps,
+in order. After writing your own complete handoff, delete that handoff and its
+.resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). Honor every ruling under Inherited owner rulings without reopening any of them, including those made in earlier links. Keep the standing
 routing rules: dispatch subagents for well-specified lanes and route
 sustained volume to external harnesses (codex, opencode, agy, kimi, local
-qwen) as the handoff's "How to run the lanes" describes; the orchestrator
+qwen) as the handoff section How to run the lanes describes; the orchestrator
 seat does triage, briefs, review and delicate steps only. Ask owner questions
 one per turn through the question widget. When the wrap nudge fires and you
 reach a natural stopping point, or the owner asks, wrap and continue the chain
@@ -85,10 +85,16 @@ The wrap does not start the successor itself in the background. After cleanup an
 **Printed command (the default, and the only path on a host with no desktop).** Print one line, copy-pasteable, to run from this session's working directory:
 
 ```text
-claude -n <chain>-<n+1> --model <model> '<resume prompt>'
+claude -n <chain>-<n+1> --model <model> <quoted resume prompt>
 ```
 
-Fill `<model>` with this session's model alias or id (for example `opus`). Fill `<resume prompt>` with the fixed template above, filled in and collapsed to a single line (line breaks become spaces), and quote it literally for the owner's shell so the prompt arrives as one argument without shell evaluation. In a POSIX shell, wrap the prompt in single quotes (`'...'`) and escape each embedded single quote (`'`) as `'\''` (close single quote, escaped single quote, reopen single quote). Because single quotes suppress all POSIX shell substitutions, dollar signs (`$`), command substitutions (`$(...)`), backticks (``` `...` ```), backslashes (`\`), and double quotes (`"`) are preserved literally without expansion or execution. Print the command in a fenced block under a short lead-in naming the working directory to run it from. Also write the filled prompt to `~/.claude/handoffs/<same slug>.resume-prompt.txt`, beside the handoff, for the owner to paste from if the one-line form is awkward. Record `launch: owner-started` with `session_id: null` in the handoff header.
+Fill `<model>` with this session's model alias or id (for example `opus`). Fill `<resume prompt>` with the fixed template above, substituting `<chain>` (kebab-case `[a-z0-9-]+`), `<n+1>`, `<n+2>`, and the exact existing `<absolute handoff path>` without stripping or altering any characters from the path, then collapse it to a single line (line breaks become spaces). Quote `<resume prompt>` for the receiving shell the owner pastes into (not by the host OS) to form `<quoted resume prompt>`, so the prompt arrives as one literal argument without shell evaluation:
+
+- **POSIX shells (`sh`, `bash`, `zsh`, Git Bash):** wrap `<resume prompt>` in single quotes (`'...'`) and escape each embedded single quote (`'`) as `'\''` (close single quote, escaped single quote, reopen single quote). Single quotes suppress all POSIX shell substitutions, so dollar signs (`$`), command substitutions (`$(...)`), backticks (``` `...` ```), backslashes (`\`), and double quotes (`"`) are preserved literally without expansion or execution, and `'\''` preserves apostrophes in existing paths such as `/home/O'Brien/.claude/handoffs/...`.
+- **PowerShell (`pwsh`, `powershell`):** wrap `<resume prompt>` in single quotes (`'...'`) and escape every character that PowerShell treats as a single-quote delimiter - the ASCII apostrophe (`'`, U+0027) and the typographic single quotes U+2018 (left single quotation mark), U+2019 (right single quotation mark), U+201A (single low-9 quotation mark), and U+201B (single high-reversed-9 quotation mark) - by doubling that character with itself (for example `''` for `'`, and two consecutive U+2019 characters for U+2019). Never use PowerShell double quotes (`"..."`), which are expandable and evaluate `$` variables, `$(...)` subexpressions, and backtick (`` ` ``) escapes. PowerShell single-quoted strings are verbatim literals: `$`, `$HOME`, `$(...)`, backticks, backslashes (`\`), percent signs (`%`), exclamation marks (`!`), and double quotes (`"`) are preserved without evaluation, and doubling every PowerShell single-quote delimiter (`'` and U+2018/U+2019/U+201A/U+201B) preserves ASCII and typographic apostrophes in existing paths such as `C:\Users\O'Brien\.claude\handoffs\...`.
+- **`cmd.exe` (Windows Command Prompt):** wrap `<resume prompt>` in double quotes (`"..."`). Because the fixed template contains no double quotes (`"`) and ends with a period (`.`), never a backslash (`\`), and `cmd.exe` treats single quotes (`'`), dollar signs (`$`), `$(...)`, and backticks (`` ` ``) as literal characters inside `"..."`, ordinary Windows paths - including paths with spaces, backslashes, `$`, `$(...)`, or apostrophes such as `C:\Users\O'Brien\.claude\handoffs\...` - round-trip unchanged with no escaping. Because `cmd.exe` expands `%VAR%` and (under delayed expansion) `!VAR!` inside `"..."` and has no safe interactive inline escape for `"`, `%`, or `!`, if the existing `<absolute handoff path>` contains `"`, `%`, or `!`, do not inline `<resume prompt>` into a `cmd.exe` double-quoted argument: instead use the `.resume-prompt.txt` fallback by printing `claude -n <chain>-<n+1> --model <model>` and instructing the owner to paste the prompt from `~/.claude/handoffs/<same slug>.resume-prompt.txt` (or run the PowerShell single-quoted command in PowerShell).
+
+Unless the owner has said which shell they paste into, assume `cmd.exe` on a Windows host and a POSIX shell elsewhere. Print the command in a fenced block under a short lead-in naming the working directory and receiving shell to run it from. Also write the filled prompt to `~/.claude/handoffs/<same slug>.resume-prompt.txt`, beside the handoff, for the owner to paste from if the one-line form is awkward or when `cmd.exe` uses the prompt-file fallback. Record `launch: owner-started` with `session_id: null` in the handoff header.
 
 **New visible console window (optional, on a host with a desktop).** The prompt is read from the prompt file above, because Windows Terminal splits its command line at every semicolon and the prompt contains them. On Windows with Windows Terminal (`wt.exe` on PATH), from the PowerShell tool:
 
