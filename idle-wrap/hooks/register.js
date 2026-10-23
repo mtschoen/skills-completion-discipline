@@ -19,6 +19,8 @@ const DEFAULT_PROMPT = [
   'If this session has already been wrapped and nothing has happened since, reply with one short line and stop.',
 ].join(' ')
 const WRAP_SKILL = 'wrap'
+// The dim footer label (beside `focus`, `memory paused`) that says the mod is armed
+const MODE_LABEL = 'idle-wrap'
 const MAX_WRAP_ATTEMPTS = 3
 
 // Settings for this activation, filled in by session.start
@@ -224,7 +226,7 @@ async function onPromptSubmit($, e, next) {
   const now = await $.clock.now()
   noteActivity(now)
   resetForUser()
-  $.ui.status('')
+  $.ui.status(undefined)
   const result = await next(e)
   // Acceptance starts unfinished work regardless of newer submission attempts.
   // Refusals cannot clear it; only main-loop completion ends the busy interval.
@@ -244,7 +246,7 @@ async function onCommandRun($, e, next) {
   const now = await $.clock.now()
   noteActivity(now)
   resetForUser()
-  $.ui.status('')
+  $.ui.status(undefined)
   return next(e)
 }
 
@@ -284,6 +286,15 @@ async function onTurnComplete($, e, next) {
     }
   }
   return next(e)
+}
+
+// The armed state lives in the prompt footer's mode labels; the status line
+// is kept for the outcome alone, once the idle turn has run.
+async function onSessionModeRender($, e, next) {
+  if (!isSessionActive || !isInteractive || isDisabled) return next(e)
+  const modes = e.props.modes ?? []
+  if (modes.includes(MODE_LABEL)) return next(e)
+  return next({ ...e, props: { ...e.props, modes: [...modes, MODE_LABEL] } })
 }
 
 async function onSessionCompact($, e, next) {
@@ -327,4 +338,6 @@ export function register(on, options) {
   on('turn.complete', onTurnComplete)
 
   on('session.compact', onSessionCompact).catch(async ($, e, next) => next(e))
+
+  on('ui.render', { component: 'SessionMode' }, onSessionModeRender)
 }

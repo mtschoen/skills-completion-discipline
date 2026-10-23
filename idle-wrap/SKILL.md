@@ -36,9 +36,13 @@ the idle-compaction cliff or the mods API.
 - Vetoes automatic compaction of an idle session, so the owner comes back to
   a wrap, never a summary. Manual `/compact` and compaction during live work
   pass through untouched.
-- After the turn finishes, shows one status line under the prompt: either
-  read the summary, then `/exit` so the session id stays one start-to-wrap arc, or that it resumed unfinished work and
-  wraps on the next idle stretch.
+- Shows it is armed as a dim `idle-wrap` label among the prompt footer's
+  mode labels (beside `focus` or `memory paused`), not as a status line: the
+  status line is drawn as a warning, and nothing is wrong until the idle turn
+  runs.
+- After that turn finishes, shows one status line under the prompt: either
+  read the summary, then `/exit` so the session id stays one start-to-wrap
+  arc, or that it resumed unfinished work and wraps on the next idle stretch.
 
 ## Tune or disable it
 

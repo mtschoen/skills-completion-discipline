@@ -58,6 +58,7 @@ async function start(
   on('session.end', () => ({ sessionId: 'abc123' }))
   on('turn.complete', () => ({ text: '' }))
   on('skill.prompt', ($, e) => ({ text: e.text }))
+  on('ui.render', ($, e) => ({ type: 'Text', children: [(e.props.modes ?? []).join(' & ')] }))
   on('session.compact', () => ({ messages: ONE_MESSAGE }))
   on('session.usage', async () => {
     if (onUsage) return await onUsage()
@@ -474,7 +475,7 @@ test('shows a status line when the wrap turn finishes and re-arms on the next us
   await $.prompt.submit({ text: 'unfinished turn', wait: false })
   await clock.advance(TEN_MINUTES)
   await completeTurn($)
-  expect(statuses.some((s) => s.includes('wrapped while idle'))).toBe(false)
+  expect(statuses.some((s) => s?.includes('wrapped while idle'))).toBe(false)
 
   // Idle session reaches threshold and wrap is submitted
   await clock.advance(FIFTY_MINUTES)
@@ -482,7 +483,7 @@ test('shows a status line when the wrap turn finishes and re-arms on the next us
 
   // Aborted wrap completion does not emit successful wrap status and restores retry eligibility
   await $.turn.complete({ turnId: 't-aborted', answer: '', durationMs: 10, isAborted: true, reason: 'aborted', usage: null })
-  expect(statuses.some((s) => s.includes('wrapped while idle'))).toBe(false)
+  expect(statuses.some((s) => s?.includes('wrapped while idle'))).toBe(false)
 
   // Retries after next threshold
   await clock.advance(FIFTY_MINUTES)
@@ -495,7 +496,7 @@ test('shows a status line when the wrap turn finishes and re-arms on the next us
 
   // Command-only resumption clears status and re-arms without starting a model turn
   await $.command.run({ command: 'help', args: '' })
-  expect(statuses[statuses.length - 1]).toBe('')
+  expect(statuses[statuses.length - 1]).toBeUndefined()
   await clock.advance(FIFTY_MINUTES)
   expect(ran).toEqual(['/wrap --fast', '/wrap --fast', '/help', '/wrap --fast'])
   await completeTurn($)
@@ -503,7 +504,7 @@ test('shows a status line when the wrap turn finishes and re-arms on the next us
 
   // Prompt resumption clears status and re-arms
   await $.prompt.submit({ text: 'continue with the next issue', wait: false })
-  expect(statuses[statuses.length - 1]).toBe('')
+  expect(statuses[statuses.length - 1]).toBeUndefined()
   await completeTurn($)
   await clock.advance(FIFTY_MINUTES)
   expect(ran).toEqual(['/wrap --fast', '/wrap --fast', '/help', '/wrap --fast', '/wrap --fast'])
@@ -593,4 +594,22 @@ test('a slash-command prompt counts as wrapped without the skill signal', async 
   expect(statuses[statuses.length - 1]).toMatch(/wrapped while idle/)
   await clock.advance(FIFTY_MINUTES * 2)
   expect(ran).toEqual([WRAP_COMMAND])
+})
+
+const SESSION_MODE = { plugin: 'idle-wrap', component: 'SessionMode', requestId: 'session-mode', props: { modes: ['focus'] } } as const
+
+test('an armed session shows idle-wrap among the footer mode labels, and no status line', async ($, on) => {
+  const { statuses } = await start($, on)
+  const ui = await $.ui.mount({ ...SESSION_MODE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /idle-wrap/ }))?.text).toBe('focus & idle-wrap')
+  await ui.unmount()
+  // Nothing pinned under the prompt until the idle turn has run
+  expect(statuses.filter((s) => s !== undefined)).toEqual([])
+})
+
+test('a disabled or non-interactive session adds no footer label', async ($, on) => {
+  await start($, on, { env: { IDLE_WRAP_DISABLED: '1' } })
+  const ui = await $.ui.mount({ ...SESSION_MODE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /focus/ }))?.text).toBe('focus')
+  await ui.unmount()
 })
