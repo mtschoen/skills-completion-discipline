@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -282,13 +283,23 @@ def quote_posix_argument(argument: str) -> str:
     return "'" + argument.replace("'", "'\\''") + "'"
 
 
+def quote_windows_argument(argument: str) -> str:
+    """Quotes an argument for cmd.exe and PowerShell with one pair of double quotes."""
+    if '"' in argument:
+        raise ValueError("A Windows argument must not contain a double quote")
+    if argument.endswith("\\"):
+        raise ValueError("A Windows argument must not end in a backslash")
+    return '"' + argument + '"'
+
+
 def format_printed_launch_command(
     chain_name: str,
     next_link: int,
     model: str,
     handoff_path: str,
+    quote_argument=quote_posix_argument,
 ) -> tuple[str, str]:
-    """Formats the collapsed resume prompt and single-quoted POSIX launch command."""
+    """Formats the collapsed resume prompt and the launch command using the given quoter."""
     prompt = RESUME_PROMPT_TEMPLATE.format(
         chain_name=chain_name,
         next_link=next_link,
@@ -296,7 +307,7 @@ def format_printed_launch_command(
         future_link=next_link + 1,
     )
     collapsed_prompt = " ".join(prompt.split())
-    quoted_prompt = quote_posix_argument(collapsed_prompt)
+    quoted_prompt = quote_argument(collapsed_prompt)
     command = f"claude -n {chain_name}-{next_link} --model {model} {quoted_prompt}"
     return collapsed_prompt, command
 
@@ -422,3 +433,108 @@ def test_printed_command_posix_quoting_round_trip(
             f"Expected:\n{expected_arguments}\n"
             f"Received:\n{invoked_arguments}"
         )
+
+
+CHAIN_REFERENCE_PATH = Path(__file__).resolve().parents[1] / "references" / "chain.md"
+CHAIN_PLACEHOLDERS = {
+    "<n+1>": "{next_link}",
+    "<n+2>": "{future_link}",
+    "<chain>": "{chain_name}",
+    "<absolute handoff path>": "{handoff_path}",
+}
+
+
+def read_resume_prompt_template_from_reference() -> str:
+    """Returns the fenced text block directly under the Resume prompt heading."""
+    reference_text = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
+    match = re.search(
+        r"^## Resume prompt[^\n]*\n.*?^```text\r?\n(.*?)^```",
+        reference_text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match, "Resume prompt fenced block not found in chain.md"
+    return match.group(1)
+
+
+def test_resume_prompt_template_has_no_quote_characters() -> None:
+    reference_template = read_resume_prompt_template_from_reference()
+    for forbidden_character in ('"', "'", "`"):
+        assert forbidden_character not in reference_template, (
+            f"chain.md resume prompt contains {forbidden_character!r}"
+        )
+    assert not reference_template.rstrip().endswith("\\")
+
+    normalised_reference = " ".join(reference_template.split())
+    for placeholder, replacement in CHAIN_PLACEHOLDERS.items():
+        normalised_reference = normalised_reference.replace(placeholder, replacement)
+    assert normalised_reference == " ".join(RESUME_PROMPT_TEMPLATE.split())
+
+
+@pytest.mark.parametrize(
+    "handoff_path_component",
+    ["plain", "owner's-handoff", "double\\backslash", "$(printf INJECTED >&2)"],
+    ids=["plain", "apostrophe", "doubled-backslash", "command-substitution"],
+)
+def test_printed_command_windows_quoting_round_trip(
+    handoff_path_component: str,
+) -> None:
+    command_interpreter = shutil.which("cmd.exe") if os.name == "nt" else None
+    if not command_interpreter:
+        pytest.skip("cmd.exe not available on this system")
+
+    handoff_path = (
+        rf"C:\Users\owner\.claude\handoffs\2026-10-14-{handoff_path_component}.md"
+    )
+    collapsed_prompt, printed_command = format_printed_launch_command(
+        chain_name="settle-and-cure",
+        next_link=2,
+        model="opus",
+        handoff_path=handoff_path,
+        quote_argument=quote_windows_argument,
+    )
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        mock_binary_directory = temporary_root / "bin"
+        mock_binary_directory.mkdir()
+        invocation_log = temporary_root / "invoked_arguments.txt"
+
+        mock_claude_script = mock_binary_directory / "claude.cmd"
+        mock_claude_script.write_bytes(
+            b"@echo off\r\n"
+            b"setlocal enabledelayedexpansion\r\n"
+            b":next\r\n"
+            b'if "%~1"=="" goto done\r\n'
+            b'set "argument=%~1"\r\n'
+            b'>>"%INVOCATION_LOG%" echo(!argument!\r\n'
+            b"shift\r\n"
+            b"goto next\r\n"
+            b":done\r\n"
+        )
+
+        environment = os.environ.copy()
+        environment["PATH"] = (
+            f"{mock_binary_directory}{os.pathsep}{environment.get('PATH', '')}"
+        )
+        environment["INVOCATION_LOG"] = str(invocation_log)
+
+        completed_process = subprocess.run(
+            f'"{command_interpreter}" /d /s /c "{printed_command}"',
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert completed_process.returncode == 0, (
+            f"cmd.exe failed: {completed_process.returncode}\n{completed_process.stderr}"
+        )
+        assert completed_process.stderr == ""
+        invoked_arguments = invocation_log.read_text(encoding="utf-8").splitlines()
+        assert invoked_arguments == [
+            "-n",
+            "settle-and-cure-2",
+            "--model",
+            "opus",
+            collapsed_prompt,
+        ]
