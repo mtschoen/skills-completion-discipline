@@ -21,6 +21,7 @@ async function start(
     useDefaultPrompt = false,
     onCommandRun = null,
     onPromptSubmit = null,
+    onSkillPrompt = null,
     onUsage = null,
     onClockNow = null,
   }: {
@@ -30,6 +31,7 @@ async function start(
     useDefaultPrompt?: boolean
     onCommandRun?: (($, e: any) => Promise<any> | any) | null
     onPromptSubmit?: (($, e: any) => Promise<any> | any) | null
+    onSkillPrompt?: (($, e: any) => Promise<any> | any) | null
     onUsage?: (() => Promise<any> | any) | null
     onClockNow?: ((nowMs: number) => Promise<any> | any) | null
   } = {}
@@ -57,7 +59,10 @@ async function start(
   on('session.start', () => ({ cwd: '/work' }))
   on('session.end', () => ({ sessionId: 'abc123' }))
   on('turn.complete', () => ({ text: '' }))
-  on('skill.prompt', ($, e) => ({ text: e.text }))
+  on('skill.prompt', async ($, e) => {
+    if (onSkillPrompt) return await onSkillPrompt($, e)
+    return { text: e.text }
+  })
   on('ui.render', ($, e) => ({ type: 'Text', children: [(e.props.modes ?? []).join(' & ')] }))
   on('session.compact', () => ({ messages: ONE_MESSAGE }))
   on('session.usage', async () => {
@@ -508,6 +513,13 @@ test('shows a status line when the wrap turn finishes and re-arms on the next us
   await completeTurn($)
   await clock.advance(FIFTY_MINUTES)
   expect(ran).toEqual(['/wrap --fast', '/wrap --fast', '/help', '/wrap --fast', '/wrap --fast'])
+
+  // A slash-command prompt is the wrap itself: its completion counts without
+  // the skill signal, and the wrapped session is not prompted again
+  await completeTurn($)
+  expect(statuses[statuses.length - 1]).toMatch(/wrapped while idle/)
+  await clock.advance(FIFTY_MINUTES * 2)
+  expect(ran).toEqual(['/wrap --fast', '/wrap --fast', '/help', '/wrap --fast', '/wrap --fast'])
 })
 
 function runWrapSkill($) {
@@ -586,16 +598,6 @@ test('repeated resumes stop at the attempt cap until the owner prompts again', a
   expect(submitted[4]).toMatch(/Idle check from the idle-wrap mod/)
 })
 
-test('a slash-command prompt counts as wrapped without the skill signal', async ($, on) => {
-  const { clock, ran, statuses } = await start($, on)
-  await clock.advance(FIFTY_MINUTES)
-  expect(ran).toEqual([WRAP_COMMAND])
-  await completeTurn($)
-  expect(statuses[statuses.length - 1]).toMatch(/wrapped while idle/)
-  await clock.advance(FIFTY_MINUTES * 2)
-  expect(ran).toEqual([WRAP_COMMAND])
-})
-
 const SESSION_MODE = { plugin: 'idle-wrap', component: 'SessionMode', requestId: 'session-mode', props: { modes: ['focus'] } } as const
 
 test('an armed session shows idle-wrap among the footer mode labels, and no status line', async ($, on) => {
@@ -612,4 +614,20 @@ test('a disabled or non-interactive session adds no footer label', async ($, on)
   const ui = await $.ui.mount({ ...SESSION_MODE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /focus/ }))?.text).toBe('focus')
   await ui.unmount()
+})
+
+test('a rejected wrap skill delivery is not a wrap', async ($, on) => {
+  const { clock, submitted, statuses } = await start($, on, {
+    useDefaultPrompt: true,
+    onSkillPrompt: () => { throw new Error('skill delivery failed') },
+  })
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(1)
+  await runWrapSkill($).catch(() => {})
+  await completeTurn($)
+  expect(statuses[statuses.length - 1]).toMatch(/resumed unfinished work/)
+  expect(await $.session.compact({ trigger: 'auto', messages: ONE_MESSAGE })).toEqual({ messages: ONE_MESSAGE })
+  // The next idle stretch prompts again
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(2)
 })

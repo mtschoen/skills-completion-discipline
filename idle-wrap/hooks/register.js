@@ -253,10 +253,13 @@ async function onCommandRun($, e, next) {
 // The wrap skill expanding on the main loop during the mod's turn: the model
 // chose to wrap rather than resume.
 async function onSkillPrompt($, e, next) {
+  // Latched only once the expansion beneath succeeded: a rejected delivery
+  // is not a wrap.
+  const result = await next(e)
   if (!e.agentId && isWrapInFlight) {
     hasWrapRun = true
   }
-  return next(e)
+  return result
 }
 
 async function onTurnComplete($, e, next) {
