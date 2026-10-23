@@ -261,15 +261,15 @@ def test_launch_chain_successor_prompt_file_handling(
 
 
 RESUME_PROMPT_TEMPLATE = (
-    'You are link {next_link} of session chain "{chain_name}". Before anything else, read the '
-    'handoff {handoff_path} in full, then continue from its "Next steps, '
-    'in order". After writing your own complete handoff, delete that handoff and its '
+    "You are link {next_link} of session chain {chain_name}. Before anything else, read the "
+    "handoff {handoff_path} in full, then continue from its section Next steps, "
+    "in order. After writing your own complete handoff, delete that handoff and its "
     ".resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). "
-    'Honor every ruling under "Inherited owner rulings" without reopening any of them, '
+    "Honor every ruling under Inherited owner rulings without reopening any of them, "
     "including those made in earlier links. Keep the standing "
     "routing rules: dispatch subagents for well-specified lanes and route "
     "sustained volume to external harnesses (codex, opencode, agy, kimi, local "
-    'qwen) as the handoff\'s "How to run the lanes" describes; the orchestrator '
+    "qwen) as the handoff section How to run the lanes describes; the orchestrator "
     "seat does triage, briefs, review and delicate steps only. Ask owner questions "
     "one per turn through the question widget. When the wrap nudge fires and you "
     "reach a natural stopping point, or the owner asks, wrap and continue the chain "

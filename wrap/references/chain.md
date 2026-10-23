@@ -65,13 +65,13 @@ Choose `continue` when actionable work remains, `blocked` when everything left n
 Use this fixed template verbatim, substituting the chain name, link numbers and absolute handoff path. Expand the home-directory form of the handoff path for the receiving session.
 
 ```text
-You are link <n+1> of session chain "<chain>". Before anything else, read the
-handoff <absolute handoff path> in full, then continue from its "Next steps,
-in order". After writing your own complete handoff, delete that handoff and its
-.resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). Honor every ruling under "Inherited owner rulings" without reopening any of them, including those made in earlier links. Keep the standing
+You are link <n+1> of session chain <chain>. Before anything else, read the
+handoff <absolute handoff path> in full, then continue from its section Next steps,
+in order. After writing your own complete handoff, delete that handoff and its
+.resume-prompt.txt (defer deletion under --fast and report the deferred cleanup in the summary). Honor every ruling under Inherited owner rulings without reopening any of them, including those made in earlier links. Keep the standing
 routing rules: dispatch subagents for well-specified lanes and route
 sustained volume to external harnesses (codex, opencode, agy, kimi, local
-qwen) as the handoff's "How to run the lanes" describes; the orchestrator
+qwen) as the handoff section How to run the lanes describes; the orchestrator
 seat does triage, briefs, review and delicate steps only. Ask owner questions
 one per turn through the question widget. When the wrap nudge fires and you
 reach a natural stopping point, or the owner asks, wrap and continue the chain
@@ -85,10 +85,10 @@ The wrap does not start the successor itself in the background. After cleanup an
 **Printed command (the default, and the only path on a host with no desktop).** Print one line, copy-pasteable, to run from this session's working directory:
 
 ```text
-claude -n <chain>-<n+1> --model <model> '<resume prompt>'
+claude -n <chain>-<n+1> --model <model> <quoted resume prompt>
 ```
 
-Fill `<model>` with this session's model alias or id (for example `opus`). Fill `<resume prompt>` with the fixed template above, filled in and collapsed to a single line (line breaks become spaces), and quote it literally for the owner's shell so the prompt arrives as one argument without shell evaluation. In a POSIX shell, wrap the prompt in single quotes (`'...'`) and escape each embedded single quote (`'`) as `'\''` (close single quote, escaped single quote, reopen single quote). Because single quotes suppress all POSIX shell substitutions, dollar signs (`$`), command substitutions (`$(...)`), backticks (``` `...` ```), backslashes (`\`), and double quotes (`"`) are preserved literally without expansion or execution. Print the command in a fenced block under a short lead-in naming the working directory to run it from. Also write the filled prompt to `~/.claude/handoffs/<same slug>.resume-prompt.txt`, beside the handoff, for the owner to paste from if the one-line form is awkward. Record `launch: owner-started` with `session_id: null` in the handoff header.
+Fill `<model>` with this session's model alias or id (for example `opus`). Fill `<resume prompt>` with the fixed template above, filled in and collapsed to a single line (line breaks become spaces), and wrap it in exactly one pair of outer quotes to form `<quoted resume prompt>`, so the prompt arrives as one argument. The template contains no quote characters, so nothing inside the prompt is escaped. On a Windows host (the owner pastes into cmd.exe or PowerShell) use double quotes (`"..."`); on a POSIX shell use single quotes (`'...'`). The wrap chooses by the host platform it is running on. When filling the placeholders (chain name, model, handoff path), never introduce a quote character, a `%` or `!` pair, or a trailing backslash; a Windows path with backslashes mid-prompt is fine. Print the command in a fenced block under a short lead-in naming the working directory to run it from. Also write the filled prompt to `~/.claude/handoffs/<same slug>.resume-prompt.txt`, beside the handoff, for the owner to paste from if the one-line form is awkward. Record `launch: owner-started` with `session_id: null` in the handoff header.
 
 **New visible console window (optional, on a host with a desktop).** The prompt is read from the prompt file above, because Windows Terminal splits its command line at every semicolon and the prompt contains them. On Windows with Windows Terminal (`wt.exe` on PATH), from the PowerShell tool:
 
