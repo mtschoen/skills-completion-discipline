@@ -1,10 +1,14 @@
 ---
 name: idle-wrap
-description: Explains the idle-wrap mod, which runs /wrap --fast in the open Claude Code session when it has sat idle near the prompt-cache cliff instead of letting idle compaction summarize it. Use when the owner asks how idle wrap works, why a session wrapped itself, or how to tune or disable it.
+description: "Use when the owner asks how idle wrap works, why a Claude Code session wrapped itself, or how to tune or disable it. Explains the mod that runs /wrap --fast in the open session near the idle prompt-cache cliff, preserving context instead of letting idle compaction summarize it."
 disable-model-invocation: true
 ---
 
 # idle-wrap
+
+## Applicability
+
+Explains the idle-wrap mod, which runs /wrap --fast in the open Claude Code session when it has sat idle near the prompt-cache cliff instead of letting idle compaction summarize it. Use when the owner asks how idle wrap works, why a session wrapped itself, or how to tune or disable it.
 
 A Claude Code mod, not a procedure. The directory carries a plugin manifest
 and a hooks module, so Claude Code loads it in every session from the skills

@@ -1,9 +1,13 @@
 ---
 name: maintaining-full-coverage
-description: "Use when: user mentions coverage, lint, linter, static analysis, code quality checks, 100% coverage, coverage gate, lint baseline, test report, TEST-REPORT.md, or 'is the build clean'; BEFORE declaring work done, summarizing what you built, or saying 'all passing/working/done/clean'; BEFORE committing or pushing; completing any feature/bugfix/refactor in a project that tracks test coverage OR has linters/analyzers configured (ruff, eslint, mypy, clang-tidy, jbinspect/inspectcode, golangci-lint, Roslyn analyzers, etc.); establishing coverage or lint tracking for a new project. If you wrote or changed production code, this skill applies - no exceptions (the Three Modes inside calibrate what the bar means for projects with pre-existing debt). TEST-REPORT.md is a single factual snapshot: no narrative."
+description: "Use when coverage, lint, static analysis, quality gates, TEST-REPORT.md or build cleanliness arise; before completion claims, summaries, commits or pushes; after production-code edits; or when establishing coverage/lint tracking. Enforces coverage and analyzer gates with mode-aware evidence and a factual report."
 ---
 
 # Maintaining Full Coverage
+
+## Applicability
+
+Use when: user mentions coverage, lint, linter, static analysis, code quality checks, 100% coverage, coverage gate, lint baseline, test report, TEST-REPORT.md, or 'is the build clean'; BEFORE declaring work done, summarizing what you built, or saying 'all passing/working/done/clean'; BEFORE committing or pushing; completing any feature/bugfix/refactor in a project that tracks test coverage OR has linters/analyzers configured (ruff, eslint, mypy, clang-tidy, jbinspect/inspectcode, golangci-lint, Roslyn analyzers, etc.); establishing coverage or lint tracking for a new project. If you wrote or changed production code, this skill applies - no exceptions (the Three Modes inside calibrate what the bar means for projects with pre-existing debt). TEST-REPORT.md is a single factual snapshot: no narrative.
 
 **Report contract:** `TEST-REPORT.md` is one current factual snapshot: status,
 mode, git revision, test counts, coverage, lint findings, exclusions and commands.

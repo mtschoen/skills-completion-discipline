@@ -1,6 +1,6 @@
 ---
 name: wrap
-description: Use when the user says /wrap, "wrap up", "close out this session", "finish the session", "wrap and keep going in a fresh session", or "wrap and continue". Also when asked to update memory, save learnings, or commit everything before exit, or at a natural stopping point after the soft 250K wrap nudge.
+description: "Use when asked to /wrap, close or finish a session, wrap and continue in a fresh session, update memory, save learnings or commit everything before exit, or at a natural stop after the soft 250K wrap nudge. Externalizes session knowledge into artifacts and cleans every touched repo for handoff."
 ---
 
 # wrap
@@ -8,6 +8,8 @@ description: Use when the user says /wrap, "wrap up", "close out this session", 
 The session-closing ritual for a coding agent session. Performs two equally-mandatory jobs: **externalize ephemeral working memory** (things the current agent knows from this conversation that no file/commit captures yet) into durable artifacts, and **bring every touched repo into a clean state** so the next session's agent doesn't waste cycles wading through obsolete context.
 
 ## When to use
+
+Use when the user says /wrap, "wrap up", "close out this session", "finish the session", "wrap and keep going in a fresh session", or "wrap and continue". Also when asked to update memory, save learnings, or commit everything before exit, or at a natural stopping point after the soft 250K wrap nudge.
 
 - User types `/wrap` or says some variant of "wrap up this session", "close out", "let's finish for the day". `/wrap --fast` runs the same procedure non-interactively (no questions, safe actions only) - see "Fast mode" below.
 - User explicitly asks you to update memory / save learnings / commit everything before exit.
@@ -83,7 +85,7 @@ End with the successor's name and the launch line (or its confirmed window), the
 
 ## Procedure
 
-Wrap runs five phases in strict sequence (0 → 1 → 2 → 3 → 4) - but they are independently fault-tolerant. A failure in phase N does not undo phases 1..N-1, and (for most failures) does not abort phases N+1..last. Phase 4 (the summary) always runs, even after cancellation or failure.
+Wrap runs five phases in strict sequence (0 -> 1 -> 2 -> 3 -> 4) - but they are independently fault-tolerant. A failure in phase N does not undo phases 1..N-1, and (for most failures) does not abort phases N+1..last. Phase 4 (the summary) always runs, even after cancellation or failure.
 
 The orchestrator runs Phases 0, 1, 2, 3a, and 3d directly. Phases 3b and 3c fan out to per-repo subagents (see "Subagent dispatch" below). Phase 4 stitches subagent fragments together with the orchestrator's cross-repo narrative.
 
@@ -119,7 +121,7 @@ Determine which repos the session touched. The repo containing the cwd at the ti
 
 **Not in scope:** Repos the session only *read*, other than the cwd. Reading is not touching, but the cwd is treated as in-scope regardless of whether the session edited it.
 
-**Output of Phase 1:** An ordered list of touched-repo roots. Store it in working memory for Phases 2–4.
+**Output of Phase 1:** An ordered list of touched-repo roots. Store it in working memory for Phases 2-4.
 
 ### Phase 2 - Session-wide sweep
 
@@ -268,7 +270,7 @@ Spot-check before publishing: cross-reference subagent fragments against `git lo
 
 Keep the summary terse - specific numbers, specific paths, specific decisions. No filler.
 
-**Empty case:** If Phases 0–3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
+**Empty case:** If Phases 0-3 found nothing (clean state, idempotent re-run, or genuinely-quiet session), the entire summary is one or two lines: *"Nothing to wrap. \<repo names\> are clean, no memory items to offload, no background processes running."* Do not pad with bullet points for empty categories. Per principle 9, the empty path is a valid pass - emit it directly and exit.
 
 **Chain-mode closing lines.** After following `references/chain.md`, name the successor and give the launch line (the exact filled `claude -n ... --model ...` command) or say it is open in a new terminal window, immediately before the sentinel. A wrap that launched a successor (printed the launch command or confirmed a window) ends with the chained sentinel. If a window launch failed, say so plainly, keep the handoff, and give the exact filled launch command to run by hand; that printed command still earns the chained sentinel. If status or the 10-link cap stopped the chain, state that reason instead and end with the completed sentinel, since there is no successor. An interrupted wrap follows the cancellation path without launching a successor and ends with the interrupted sentinel.
 
@@ -299,9 +301,9 @@ The three sentinels are distinct on purpose: the "go ahead and close" line is th
 - **Destructive-action gate:** deletes and archives run only after memory offload succeeds for that repo.
 - **User cancel (`Ctrl+C` / stop / a refused approval question):** whatever was already approved + executed stays done. Print a "cancelled - completed: X / pending: Y" summary immediately, ending with the **interrupted sentinel** (see Phase 4) - never the "go ahead and close" line. Cancellation also stops any in-flight subagents - wrap does not leave wrap-spawned subagents running after the user cancels.
 - **Git errors:**
-  - Merge conflict on wrap's auto-commit → stash wrap's edits, leave user work alone, record the conflict in the summary.
-  - Non-fast-forward push rejection → never force-push; report and continue.
-  - No upstream → treat as "commit only, no push" and continue.
+  - Merge conflict on wrap's auto-commit -> stash wrap's edits, leave user work alone, record the conflict in the summary.
+  - Non-fast-forward push rejection -> never force-push; report and continue.
+  - No upstream -> treat as "commit only, no push" and continue.
 - **Untracked deletions** - always per-item approval. Each approval logged in the summary with the full path. Rejections logged with the reason.
 - **Idempotent re-run** - running `/wrap` twice in a row is safe. Second run finds nothing unless new state appeared between runs.
 
