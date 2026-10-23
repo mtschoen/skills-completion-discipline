@@ -1,3 +1,5 @@
+"""End-to-end launcher script and multi-shell printed-command round-trip tests (exceeds 500 lines to keep POSIX, PowerShell, and cmd.exe subprocess harnesses in one module)."""
+
 import os
 import re
 import shutil
@@ -151,36 +153,7 @@ def test_launch_chain_successor_prompt_file_handling(
         mock_binary_directory.mkdir()
 
         invocation_log = temporary_root / "invoked_arguments.txt"
-
-        if os.name == "nt":
-            mock_claude_command_script = mock_binary_directory / "claude.cmd"
-            mock_claude_command_script.write_text(
-                "@echo off\r\n"
-                "chcp 65001 >nul\r\n"
-                "setlocal DisableDelayedExpansion\r\n"
-                ":loop\r\n"
-                'if "%~1"=="" goto done\r\n'
-                'set "ARGUMENT=%~1"\r\n'
-                "setlocal EnableDelayedExpansion\r\n"
-                f'>>"{invocation_log}" echo(!ARGUMENT!\r\n'
-                "endlocal\r\n"
-                "shift\r\n"
-                "goto loop\r\n"
-                ":done\r\n",
-                encoding="utf-8",
-            )
-            mock_claude_batch_script = mock_binary_directory / "claude.bat"
-            mock_claude_batch_script.write_text(
-                mock_claude_command_script.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-        else:
-            mock_claude_shell_script = mock_binary_directory / "claude"
-            mock_claude_shell_script.write_text(
-                f'#!/bin/sh\nprintf "%s\\n" "$@" > "{invocation_log}"\n',
-                encoding="utf-8",
-            )
-            mock_claude_shell_script.chmod(0o755)
+        write_mock_claude_executable(mock_binary_directory, invocation_log)
 
         safe_directories = get_safe_child_path_directories(powershell_executable)
         safe_system_path = os.pathsep.join(safe_directories)
@@ -278,18 +251,68 @@ RESUME_PROMPT_TEMPLATE = (
 )
 
 
+def write_mock_claude_executable(
+    mock_binary_directory: Path,
+    invocation_log: Path,
+) -> None:
+    if os.name == "nt":
+        mock_claude_command_script = mock_binary_directory / "claude.cmd"
+        mock_claude_command_script.write_text(
+            "@echo off\r\n"
+            "chcp 65001 >nul\r\n"
+            "setlocal DisableDelayedExpansion\r\n"
+            ":loop\r\n"
+            'if "%~1"=="" goto done\r\n'
+            'set "ARGUMENT=%~1"\r\n'
+            "setlocal EnableDelayedExpansion\r\n"
+            f'>>"{invocation_log}" echo(!ARGUMENT!\r\n'
+            "endlocal\r\n"
+            "shift\r\n"
+            "goto loop\r\n"
+            ":done\r\n",
+            encoding="utf-8",
+        )
+        mock_claude_batch_script = mock_binary_directory / "claude.bat"
+        mock_claude_batch_script.write_text(
+            mock_claude_command_script.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    else:
+        mock_claude_shell_script = mock_binary_directory / "claude"
+        mock_claude_shell_script.write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "$@" > "{invocation_log}"\n',
+            encoding="utf-8",
+        )
+        mock_claude_shell_script.chmod(0o755)
+
+
 def quote_posix_argument(argument: str) -> str:
     """Quotes an argument for POSIX shells using literal single-quoting."""
     return "'" + argument.replace("'", "'\\''") + "'"
 
 
-def quote_windows_argument(argument: str) -> str:
-    """Quotes an argument for cmd.exe and PowerShell with one pair of double quotes."""
-    if '"' in argument:
-        raise ValueError("A Windows argument must not contain a double quote")
+def quote_powershell_argument(argument: str) -> str:
+    """Quotes an argument for PowerShell using literal single-quoting."""
+    return "'" + argument.replace("'", "''") + "'"
+
+
+def quote_cmd_argument(argument: str) -> str:
+    """Quotes an argument for cmd.exe with one pair of double quotes."""
+    if any(character in argument for character in ('"', "%", "!")):
+        raise ValueError(
+            "A cmd.exe double-quoted argument must not contain '\"', '%', or '!'; "
+            "use the .resume-prompt.txt prompt-file fallback instead"
+        )
     if argument.endswith("\\"):
-        raise ValueError("A Windows argument must not end in a backslash")
+        raise ValueError("A cmd.exe argument must not end in a backslash")
     return '"' + argument + '"'
+
+
+RECEIVING_SHELL_QUOTERS = {
+    "posix": quote_posix_argument,
+    "powershell": quote_powershell_argument,
+    "cmd": quote_cmd_argument,
+}
 
 
 def format_printed_launch_command(
@@ -297,9 +320,12 @@ def format_printed_launch_command(
     next_link: int,
     model: str,
     handoff_path: str,
-    quote_argument=quote_posix_argument,
+    receiving_shell: str = "posix",
 ) -> tuple[str, str]:
-    """Formats the collapsed resume prompt and the launch command using the given quoter."""
+    """Formats the collapsed resume prompt and the launch command for the receiving shell."""
+    if receiving_shell not in RECEIVING_SHELL_QUOTERS:
+        raise ValueError(f"Unsupported receiving shell: {receiving_shell!r}")
+    quote_argument = RECEIVING_SHELL_QUOTERS[receiving_shell]
     prompt = RESUME_PROMPT_TEMPLATE.format(
         chain_name=chain_name,
         next_link=next_link,
@@ -348,7 +374,7 @@ def find_posix_shell_executable() -> str | None:
         ),
         (
             "finding-1-apostrophe-single-quote",
-            "owner's-handoff",
+            "O'Brien/owner's-handoff",
         ),
     ],
     ids=[
@@ -373,7 +399,10 @@ def test_printed_command_posix_quoting_round_trip(
         next_link=2,
         model="opus",
         handoff_path=handoff_path,
+        receiving_shell="posix",
     )
+    if "'" in collapsed_prompt:
+        assert "'\\''" in printed_command
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_root = Path(temporary_directory)
@@ -457,6 +486,7 @@ def read_resume_prompt_template_from_reference() -> str:
 
 
 def test_resume_prompt_template_has_no_quote_characters() -> None:
+    reference_text = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
     reference_template = read_resume_prompt_template_from_reference()
     for forbidden_character in ('"', "'", "`"):
         assert forbidden_character not in reference_template, (
@@ -469,19 +499,58 @@ def test_resume_prompt_template_has_no_quote_characters() -> None:
         normalised_reference = normalised_reference.replace(placeholder, replacement)
     assert normalised_reference == " ".join(RESUME_PROMPT_TEMPLATE.split())
 
+    assert "receiving shell" in reference_text
+    assert "'\\''" in reference_text
+    assert "''" in reference_text
+    assert "nothing inside the prompt is escaped" not in reference_text
+
+    for unsafe_cmd_fragment in (
+        'quote"character',
+        "%USERPROFILE%",
+        "!DELAYED!",
+        "trailing\\",
+    ):
+        with pytest.raises(ValueError):
+            quote_cmd_argument(unsafe_cmd_fragment)
+
 
 @pytest.mark.parametrize(
-    "handoff_path_component",
-    ["plain", "owner's-handoff", "double\\backslash", "$(printf INJECTED >&2)"],
-    ids=["plain", "apostrophe", "doubled-backslash", "command-substitution"],
+    ("receiving_shell", "handoff_path_component"),
+    [
+        ("powershell", "plain"),
+        ("powershell", r"O'Brien\owner's-handoff"),
+        ("powershell", r"double\\backslash"),
+        (
+            "powershell",
+            "$(New-Item -ItemType File -Path CHAIN_INJECTION_MARKER)",
+        ),
+        ("powershell", "$HOME-$env:REVIEW_SUFFIX"),
+        ("cmd", "plain"),
+        ("cmd", r"O'Brien\owner's-handoff"),
+        ("cmd", r"double\\backslash"),
+        (
+            "cmd",
+            "$(New-Item -ItemType File -Path CHAIN_INJECTION_MARKER)",
+        ),
+        ("cmd", "$HOME-$env:REVIEW_SUFFIX"),
+    ],
+    ids=[
+        "powershell-plain",
+        "finding-2-powershell-apostrophe",
+        "powershell-doubled-backslash",
+        "finding-1-powershell-subexpression-injection",
+        "finding-1-powershell-variable-expansion",
+        "cmd-plain",
+        "finding-2-cmd-apostrophe",
+        "cmd-doubled-backslash",
+        "cmd-subexpression-literal",
+        "cmd-dollar-variable-literal",
+    ],
 )
 def test_printed_command_windows_quoting_round_trip(
+    receiving_shell: str,
     handoff_path_component: str,
 ) -> None:
-    command_interpreter = shutil.which("cmd.exe") if os.name == "nt" else None
-    if not command_interpreter:
-        pytest.skip("cmd.exe not available on this system")
-
     handoff_path = (
         rf"C:\Users\owner\.claude\handoffs\2026-10-14-{handoff_path_component}.md"
     )
@@ -490,46 +559,76 @@ def test_printed_command_windows_quoting_round_trip(
         next_link=2,
         model="opus",
         handoff_path=handoff_path,
-        quote_argument=quote_windows_argument,
+        receiving_shell=receiving_shell,
     )
+
+    if receiving_shell == "powershell":
+        assert printed_command.endswith("'")
+        if "'" in collapsed_prompt:
+            assert "''" in printed_command
+            assert "'\\''" not in printed_command
+        powershell_executable = find_powershell_executable()
+        if not powershell_executable:
+            pytest.skip("PowerShell executable (pwsh) not found on system")
+    else:
+        assert printed_command.endswith(f'"{collapsed_prompt}"')
+        command_interpreter = shutil.which("cmd.exe") if os.name == "nt" else None
+        if not command_interpreter:
+            pytest.skip("cmd.exe not available on this system")
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_root = Path(temporary_directory)
         mock_binary_directory = temporary_root / "bin"
         mock_binary_directory.mkdir()
         invocation_log = temporary_root / "invoked_arguments.txt"
-
-        mock_claude_script = mock_binary_directory / "claude.cmd"
-        mock_claude_script.write_bytes(
-            b"@echo off\r\n"
-            b"setlocal enabledelayedexpansion\r\n"
-            b":next\r\n"
-            b'if "%~1"=="" goto done\r\n'
-            b'set "argument=%~1"\r\n'
-            b'>>"%INVOCATION_LOG%" echo(!argument!\r\n'
-            b"shift\r\n"
-            b"goto next\r\n"
-            b":done\r\n"
-        )
+        write_mock_claude_executable(mock_binary_directory, invocation_log)
 
         environment = os.environ.copy()
-        environment["PATH"] = (
-            f"{mock_binary_directory}{os.pathsep}{environment.get('PATH', '')}"
-        )
-        environment["INVOCATION_LOG"] = str(invocation_log)
+        environment["REVIEW_SUFFIX"] = "INJECTED_ENV_VALUE"
 
-        completed_process = subprocess.run(
-            f'"{command_interpreter}" /d /s /c "{printed_command}"',
-            env=environment,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        if receiving_shell == "powershell":
+            safe_directories = get_safe_child_path_directories(powershell_executable)
+            environment["PATH"] = os.pathsep.join(
+                [str(mock_binary_directory), *safe_directories]
+            )
+            completed_process = subprocess.run(
+                [
+                    powershell_executable,
+                    "-NoProfile",
+                    "-Command",
+                    printed_command,
+                ],
+                cwd=temporary_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        else:
+            environment["PATH"] = (
+                f"{mock_binary_directory}{os.pathsep}{environment.get('PATH', '')}"
+            )
+            completed_process = subprocess.run(
+                f'"{command_interpreter}" /d /s /c "{printed_command}"',
+                cwd=temporary_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
 
         assert completed_process.returncode == 0, (
-            f"cmd.exe failed: {completed_process.returncode}\n{completed_process.stderr}"
+            f"{receiving_shell} failed ({completed_process.returncode}):\n"
+            f"Standard output:\n{completed_process.stdout}\n"
+            f"Standard error:\n{completed_process.stderr}"
         )
         assert completed_process.stderr == ""
+        assert not (temporary_root / "CHAIN_INJECTION_MARKER").exists(), (
+            f"{receiving_shell} evaluated subexpression and created CHAIN_INJECTION_MARKER"
+        )
+        assert invocation_log.is_file(), (
+            f"Expected mock claude executable to be invoked by {receiving_shell}"
+        )
         invoked_arguments = invocation_log.read_text(encoding="utf-8").splitlines()
         assert invoked_arguments == [
             "-n",
