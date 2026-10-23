@@ -273,7 +273,7 @@ async function onTurnComplete($, e, next) {
     } else if (didWrap) {
       isWrapDone = true
       wrapAttempts = 0
-      $.ui.status('wrapped while idle; read the summary above, then /clear')
+      $.ui.status('wrapped while idle; read the summary above, then /exit')
     } else {
       // Resumed unfinished work instead: arm again for the next idle stretch,
       // counted against the attempt cap so a session cannot resume forever.

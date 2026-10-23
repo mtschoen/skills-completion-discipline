@@ -37,7 +37,7 @@ the idle-compaction cliff or the mods API.
   a wrap, never a summary. Manual `/compact` and compaction during live work
   pass through untouched.
 - After the turn finishes, shows one status line under the prompt: either
-  read the summary, then `/clear`, or that it resumed unfinished work and
+  read the summary, then `/exit` so the session id stays one start-to-wrap arc, or that it resumed unfinished work and
   wraps on the next idle stretch.
 
 ## Tune or disable it
