@@ -7,7 +7,18 @@
 const TICK_MS = 60000
 const DEFAULT_IDLE_MINUTES = 50
 const DEFAULT_MIN_TOKENS = 60000
-const DEFAULT_PROMPT = '/wrap --fast'
+// A plain prompt, so the model decides: resume unfinished work, or wrap when
+// nothing is in progress. A slash command here would run as typed instead.
+const DEFAULT_PROMPT = [
+  'Idle check from the idle-wrap mod: this session has sat idle long enough that it is about to be wrapped.',
+  'First decide whether you were still in the middle of something when the last turn ended:',
+  'a background command or subagent you were waiting on, a CI run, deploy or other external process',
+  'you said you would check back on, or a next step you announced and had not started.',
+  'If so, pick up exactly where you left off and finish it; do not wrap, and do not ask whether to continue.',
+  'Only if nothing is in progress and nothing is left to do should you run /wrap --fast now.',
+  'If this session has already been wrapped and nothing has happened since, reply with one short line and stop.',
+].join(' ')
+const WRAP_SKILL = 'wrap'
 const MAX_WRAP_ATTEMPTS = 3
 
 // Settings for this activation, filled in by session.start
@@ -27,6 +38,7 @@ let isBusy = false
 let isWrapSubmitted = false
 let isWrapInFlight = false
 let isWrapDone = false
+let hasWrapRun = false
 let wrapAttempts = 0
 let wrapAttemptSeq = 0
 let activeAttemptId = 0
@@ -84,6 +96,17 @@ function isModPrompt(text) {
   return text.trim() === prompt
 }
 
+// A slash-command prompt is the wrap itself; a plain prompt leaves the
+// outcome to the model, so the wrap skill running during the turn is the
+// evidence that it wrapped.
+function isOutcomeDecidedByModel() {
+  return parsePrompt(prompt) === null
+}
+
+function promptLabel() {
+  return isOutcomeDecidedByModel() ? 'the idle-wrap prompt' : prompt
+}
+
 // A prompt that starts with a slash is a command or skill: it runs as if the
 // person typed it. Anything else goes to the model as a prompt.
 async function submitPrompt($) {
@@ -110,7 +133,7 @@ function isEligible(startGen) {
 
 async function handleSubmissionFailure($, attemptGen, attemptId, errorMsg) {
   if (!isSessionActive || generation !== attemptGen || attemptId !== activeAttemptId) return
-  $.ui.log('could not run ' + prompt + ': ' + errorMsg)
+  $.ui.log('could not run ' + promptLabel() + ': ' + errorMsg)
   const errNow = await $.clock.now()
   if (!isSessionActive || generation !== attemptGen || attemptId !== activeAttemptId) return
   wrapAttempts++
@@ -118,6 +141,7 @@ async function handleSubmissionFailure($, attemptGen, attemptId, errorMsg) {
   isWrapSubmitted = false
   isWrapInFlight = false
   isWrapDone = false
+  hasWrapRun = false
   activeAttemptId = 0
 }
 
@@ -142,7 +166,8 @@ async function tick($) {
   const attemptGen = generation
   const attemptId = ++wrapAttemptSeq
   activeAttemptId = attemptId
-  $.ui.log('idle for ' + Math.round(idleMs / 60000) + ' min with ' + tokens + ' context tokens: running ' + prompt)
+  hasWrapRun = false
+  $.ui.log('idle for ' + Math.round(idleMs / 60000) + ' min with ' + tokens + ' context tokens: running ' + promptLabel())
 
   // Resolves when the queued run finishes; catch transient submission failure or drop
   submitPrompt($)
@@ -171,6 +196,7 @@ function resetForUser() {
   isWrapSubmitted = false
   isWrapInFlight = false
   isWrapDone = false
+  hasWrapRun = false
   wrapAttempts = 0
   activeAttemptId = 0
 }
@@ -222,6 +248,15 @@ async function onCommandRun($, e, next) {
   return next(e)
 }
 
+// The wrap skill expanding on the main loop during the mod's turn: the model
+// chose to wrap rather than resume.
+async function onSkillPrompt($, e, next) {
+  if (!e.agentId && isWrapInFlight) {
+    hasWrapRun = true
+  }
+  return next(e)
+}
+
 async function onTurnComplete($, e, next) {
   if (e.agentId) return next(e)
   isBusy = false
@@ -229,14 +264,23 @@ async function onTurnComplete($, e, next) {
   if (isWrapInFlight) {
     isWrapInFlight = false
     activeAttemptId = 0
+    const didWrap = hasWrapRun || !isOutcomeDecidedByModel()
+    hasWrapRun = false
     if (e.isAborted) {
       isWrapSubmitted = false
       isWrapDone = false
       wrapAttempts++
-    } else {
+    } else if (didWrap) {
       isWrapDone = true
       wrapAttempts = 0
       $.ui.status('wrapped while idle; read the summary above, then /clear')
+    } else {
+      // Resumed unfinished work instead: arm again for the next idle stretch,
+      // counted against the attempt cap so a session cannot resume forever.
+      isWrapSubmitted = false
+      isWrapDone = false
+      wrapAttempts++
+      $.ui.status('idle check resumed unfinished work; it wraps on the next idle stretch')
     }
   }
   return next(e)
@@ -277,6 +321,8 @@ export function register(on, options) {
   on('prompt.submit', onPromptSubmit).catch(async ($, e, next) => next(e))
 
   on('command.run', onCommandRun).catch(async ($, e, next) => next(e))
+
+  on('skill.prompt', { skill: WRAP_SKILL }, onSkillPrompt)
 
   on('turn.complete', onTurnComplete)
 
