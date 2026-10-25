@@ -41,6 +41,7 @@ let isWrapSubmitted = false
 let isWrapInFlight = false
 let isWrapDone = false
 let hasWrapRun = false
+let isManualWrapPending = false
 let wrapAttempts = 0
 let wrapAttemptSeq = 0
 let activeAttemptId = 0
@@ -125,7 +126,15 @@ async function submitPrompt($) {
 }
 
 function isEligible(startGen) {
-  if (!isSessionActive || !isInteractive || isDisabled || isWrapSubmitted || isWrapInFlight || isBusy) {
+  if (
+    !isSessionActive ||
+    !isInteractive ||
+    isDisabled ||
+    isWrapSubmitted ||
+    isWrapInFlight ||
+    isManualWrapPending ||
+    isBusy
+  ) {
     return false
   }
   if (wrapAttempts >= MAX_WRAP_ATTEMPTS) return false
@@ -144,6 +153,7 @@ async function handleSubmissionFailure($, attemptGen, attemptId, errorMsg) {
   isWrapInFlight = false
   isWrapDone = false
   hasWrapRun = false
+  isManualWrapPending = false
   activeAttemptId = 0
 }
 
@@ -199,6 +209,7 @@ function resetForUser() {
   isWrapInFlight = false
   isWrapDone = false
   hasWrapRun = false
+  isManualWrapPending = false
   wrapAttempts = 0
   activeAttemptId = 0
 }
@@ -250,15 +261,20 @@ async function onCommandRun($, e, next) {
   return next(e)
 }
 
-// The wrap skill expanding on the main loop during the mod's turn: the model
-// chose to wrap rather than resume.
+// The wrap skill expanding on the main loop. During the mod's own turn, the
+// model chose to wrap rather than resume. Outside it, the owner (or the
+// model) is wrapping the session by hand: once that turn completes without
+// aborting, it reaches the same done state so the idle check stops re-firing.
 async function onSkillPrompt($, e, next) {
-  const isIdleAttempt = !e.agentId && isSessionActive && isWrapInFlight && activeAttemptId > 0
+  const isMainLoop = !e.agentId && isSessionActive && isInteractive && !isDisabled
+  const isIdleAttempt = isMainLoop && isWrapInFlight && activeAttemptId > 0
+  const isManualWrap = isMainLoop && !isWrapInFlight
   const attemptId = activeAttemptId
   const attemptGen = generation
   // Latched only once the expansion beneath succeeded for this same idle
-  // attempt: a rejected or stale delivery is not a wrap.
+  // attempt or user turn: a rejected or stale delivery is not a wrap.
   const result = await next(e)
+  if (isPromptDropped(result)) return result
   if (
     isIdleAttempt &&
     isSessionActive &&
@@ -267,16 +283,19 @@ async function onSkillPrompt($, e, next) {
     generation === attemptGen
   ) {
     hasWrapRun = true
+  } else if (isManualWrap && isSessionActive && !isWrapInFlight && generation === attemptGen) {
+    isManualWrapPending = true
   }
   return result
 }
 
 async function onTurnComplete($, e, next) {
-  if (e.agentId) return next(e)
+  if (e.agentId || !isSessionActive) return next(e)
   isBusy = false
   noteActivity(await $.clock.now())
   if (isWrapInFlight) {
     isWrapInFlight = false
+    isManualWrapPending = false
     activeAttemptId = 0
     const didWrap = hasWrapRun || !isOutcomeDecidedByModel()
     hasWrapRun = false
@@ -296,6 +315,18 @@ async function onTurnComplete($, e, next) {
       wrapAttempts++
       $.ui.status('idle check resumed unfinished work; it wraps on the next idle stretch')
     }
+  } else if (isManualWrapPending) {
+    isManualWrapPending = false
+    if (e.isAborted) {
+      isWrapSubmitted = false
+      isWrapDone = false
+    } else if (isSessionActive && isInteractive && !isDisabled) {
+      isWrapSubmitted = true
+      isWrapDone = true
+      wrapAttempts = 0
+      $.ui.log('the session is already wrapped; the idle check stays off until the next prompt')
+      $.ui.status('wrapped; read the summary above, then /exit')
+    }
   }
   return next(e)
 }
@@ -313,7 +344,7 @@ async function onSessionCompact($, e, next) {
   if (e.agentId || e.trigger === 'manual' || !isInteractive || isDisabled || !isSessionActive) {
     return next(e)
   }
-  if (isBusy || isWrapInFlight) {
+  if (isBusy || isWrapInFlight || isManualWrapPending) {
     return next(e)
   }
   if (isWrapDone) {
@@ -335,6 +366,7 @@ export function register(on, options) {
     isSessionActive = false
     generation++
     isBusy = false
+    isManualWrapPending = false
     activeAttemptId = 0
     if (timer) timer.cancel()
     timer = null

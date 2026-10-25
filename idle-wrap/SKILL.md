@@ -33,6 +33,11 @@ the idle-compaction cliff or the mods API.
   during that turn. A turn that resumed work instead arms the mod again, so
   the next idle stretch prompts once more; resumes count against the same
   three-attempt cap as failed submissions, so a session cannot resume forever.
+- Treats a manual wrap as done: when the `wrap` skill expands on the main loop
+  outside the mod's own turn (the owner ran `/wrap`, or the model did) and that
+  turn completes without aborting, the session counts as wrapped and no idle
+  prompt fires until the owner's next prompt or command. A wrap run by a
+  subagent does not count.
 - Vetoes automatic compaction of an idle session, so the owner comes back to
   a wrap, never a summary. Manual `/compact` and compaction during live work
   pass through untouched.

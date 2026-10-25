@@ -422,9 +422,13 @@ test('leaves a small session alone', async ($, on) => {
 })
 
 test('does nothing in a non-interactive session', async ($, on) => {
-  const { clock, ran } = await start($, on, { isInteractive: false })
+  const { clock, ran, statuses, logged } = await start($, on, { isInteractive: false })
+  await runWrapSkill($)
+  await completeTurn($)
   await clock.advance(FIFTY_MINUTES * 2)
   expect(ran).toEqual([])
+  expect(statuses).toEqual([])
+  expect(logged).toEqual([])
 })
 
 test('environment overrides change the delay, threshold, and command', async ($, on) => {
@@ -610,10 +614,14 @@ test('an armed session shows idle-wrap among the footer mode labels, and no stat
 })
 
 test('a disabled or non-interactive session adds no footer label', async ($, on) => {
-  await start($, on, { env: { IDLE_WRAP_DISABLED: '1' } })
+  const { statuses, logged } = await start($, on, { env: { IDLE_WRAP_DISABLED: '1' } })
   const ui = await $.ui.mount({ ...SESSION_MODE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /focus/ }))?.text).toBe('focus')
   await ui.unmount()
+  await runWrapSkill($)
+  await completeTurn($)
+  expect(statuses).toEqual([])
+  expect(logged).toEqual([])
 })
 
 for (const tc of [
@@ -701,3 +709,66 @@ for (const tc of [
     expect(submitted.length).toBe(expectedBeforeRearm + 1)
   })
 }
+
+test('a manual wrap on the main loop counts as done, so idle stretches stop prompting', async ($, on) => {
+  const { clock, submitted, statuses, logged } = await start($, on, { useDefaultPrompt: true })
+  // An aborted manual wrap does not mark the session done or veto compaction
+  await runWrapSkill($)
+  expect(statuses).toEqual([])
+  expect(logged).toEqual([])
+  expect(await $.session.compact({ trigger: 'auto', messages: ONE_MESSAGE })).toEqual({ messages: ONE_MESSAGE })
+  await $.turn.complete({ turnId: 't-aborted', answer: '', durationMs: 10, isAborted: true, reason: 'aborted', usage: null })
+  expect(statuses).toEqual([])
+  expect(logged).toEqual([])
+  expect(await $.session.compact({ trigger: 'auto', messages: ONE_MESSAGE })).toEqual({ messages: ONE_MESSAGE })
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(1)
+  await completeTurn($)
+
+  // The owner asked for /wrap and the turn completed: the session is now done
+  await runWrapSkill($)
+  await completeTurn($)
+  for (let stretch = 0; stretch < 3; stretch++) {
+    await clock.advance(FIFTY_MINUTES)
+  }
+  expect(submitted.length).toBe(1)
+  expect(statuses[statuses.length - 1]).toMatch(/wrapped/)
+  expect(logged[logged.length - 1]).toMatch(/already wrapped/)
+  // Idle compaction is vetoed exactly as after an idle wrap
+  expect((await $.session.compact({ trigger: 'auto', messages: ONE_MESSAGE })).skip).toBeDefined()
+})
+
+test('a real prompt after a manual wrap re-arms the idle check', async ($, on) => {
+  const { clock, submitted } = await start($, on, { useDefaultPrompt: true })
+  await runWrapSkill($)
+  await completeTurn($)
+  await clock.advance(FIFTY_MINUTES * 2)
+  expect(submitted).toEqual([])
+
+  await $.prompt.submit({ text: 'one more thing', wait: false })
+  await completeTurn($)
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(2)
+  expect(submitted[1]).toMatch(/Idle check from the idle-wrap mod/)
+})
+
+test('a manual wrap by a subagent does not latch the done state', async ($, on) => {
+  const { clock, submitted } = await start($, on, { useDefaultPrompt: true })
+  await $.skill.prompt({ skill: 'wrap', text: 'wrap skill body', frontmatter: {}, source: 'userSettings', agentId: 'sub-1' })
+  await completeTurn($)
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(1)
+})
+
+test('a manual wrap whose skill delivery fails does not latch the done state', async ($, on) => {
+  const { clock, submitted } = await start($, on, {
+    useDefaultPrompt: true,
+    onSkillPrompt: () => {
+      throw new Error('skill delivery failed')
+    },
+  })
+  await runWrapSkill($).catch(() => {})
+  await completeTurn($)
+  await clock.advance(FIFTY_MINUTES)
+  expect(submitted.length).toBe(1)
+})
