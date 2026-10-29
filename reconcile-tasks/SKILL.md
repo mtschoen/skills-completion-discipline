@@ -1,13 +1,13 @@
 ---
 name: reconcile-tasks
-description: "Use when asked to audit completed work, check off tasks, or reconcile one project's PLAN.md/TODO.md with recent git history. Matches tasks to commits using project-tracker MCP when available or direct file and git-log reads, and presents evidence for approved task updates."
+description: "Use when asked to audit completed work, check off tasks, or reconcile one project's PLAN.md/TODO.md with recent git history. Matches tasks to commits using the project-tracker CLI or direct file and git-log reads, and presents evidence for approved task updates."
 ---
 
 # Reconciling Tasks Against Git History
 
 ## Applicability
 
-Use when the user asks the agent to reconcile a project's PLAN.md/TODO.md against its recent git history - e.g. 'what's actually done in project-tracker?', 'audit completed work for this project', 'any tasks I should check off?', 'reconcile the plan with what shipped'. Uses the project-tracker MCP server when available; otherwise reads PLAN.md/TODO.md and git log directly. Per-project, not fleet-wide.
+Use when the user asks the agent to reconcile a project's PLAN.md/TODO.md against its recent git history - e.g. 'what's actually done in project-tracker?', 'audit completed work for this project', 'any tasks I should check off?', 'reconcile the plan with what shipped'. Uses the project-tracker CLI when installed; otherwise reads PLAN.md/TODO.md and git log directly. Per-project, not fleet-wide.
 
 When the user asks for an audit of completed-but-unchecked tasks, your job is
 to look at one project's unchecked tasks and recent commit history together,
@@ -27,12 +27,21 @@ If the user is in a project's working directory, use that project's name.
 If they're not, ask which project. Don't reconcile "all projects" - this
 skill is single-project by design.
 
-### 2. Call the MCP tool
+### 2. Read reconciliation data
 
-Call `mcp__project-tracker__get_reconciliation_data(project_name)`. Defaults are
-usually fine.
+Run `project-tracker reconciliation <project_name> --json`. Defaults are
+usually fine. When auditing just-committed work, add
+`--max-cache-age-seconds 0` to force a fresh refresh.
 
-**Fallback without the MCP server:** parse the project's `PLAN.md`/`TODO.md`
+Check `truncated` in the response before matching tasks or reporting
+remaining-task counts. The CLI caps each returned collection at `--limit`
+(default 100, maximum 10000). When `truncated` is `true`, retry with a larger
+limit such as `project-tracker reconciliation <project_name> --limit 1000 --json`
+(up to `--limit 10000`). If `truncated` remains `true` at the CLI maximum,
+read `PLAN.md`/`TODO.md` directly for the full task list or explicitly report a
+partial audit before presenting findings or remaining-task counts.
+
+**Fallback without the CLI:** parse the project's `PLAN.md`/`TODO.md`
 for unchecked `- [ ]` tasks yourself (skip titles wrapped in `~~...~~`),
 collect `git log --oneline -100`, and proceed with the same matching
 workflow below.
@@ -48,6 +57,8 @@ The response includes:
   the git-data caching layer project-tracker uses.
 - `cache_age_seconds` - how fresh the data actually is.
 - `cache_refreshed` - `true` if this call triggered a `git-wizard` refresh.
+- `truncated` - `true` when any returned collection hit the `--limit` cap
+  and omitted entries.
 
 ### 3. Handle cache freshness before presenting anything
 
@@ -60,11 +71,11 @@ and decide:
 | `cache_refreshed: true` | Mention "freshly refreshed from git" in your findings. High confidence. |
 | `cache_age_seconds` < 300 (5 min) | Data is current. No freshness caveat needed. |
 | `cache_age_seconds` between 300 and max_cache_age_seconds, `cache_refreshed: false` | Data is slightly stale. Mention it briefly. |
-| `cache_age_seconds` > max_cache_age_seconds and `cache_refreshed: false` | **Refresh was attempted but failed.** Surface this prominently: "Warning: I tried to refresh the `git-wizard` cache but it failed, so this audit is running against a cache that's N minutes old. Results may miss recently-completed work." Then suggest the user run `project-tracker refresh-git` manually, or that you retry with `max_cache_age_seconds=0` once they've confirmed `git-wizard` is on PATH. |
+| `cache_age_seconds` > max_cache_age_seconds and `cache_refreshed: false` | **Refresh was attempted but failed.** Surface this prominently: "Warning: I tried to refresh the `git-wizard` cache but it failed, so this audit is running against a cache that's N minutes old. Results may miss recently-completed work." Then suggest the user run `project-tracker refresh-git` manually, or that you retry with `--max-cache-age-seconds 0` once they've confirmed `git-wizard` is on PATH. |
 | No `recent_commits` at all | Tell the user there's no history to reconcile against and stop. Don't guess from filesystem state. |
 
 If the user is auditing a project they just worked in, proactively suggest
-passing `max_cache_age_seconds=0` to force a fresh refresh before
+passing `--max-cache-age-seconds 0` to force a fresh refresh before
 presenting findings. The default 1-hour threshold is generous and will miss
 commits you just shipped.
 
@@ -120,15 +131,15 @@ might be done from older pre-cache-window work (see calibration notes).
 project-tracker can apply four distinct operations to a task in PLAN.md:
 
 1. **Check** - mark as done. Use when the commits clearly describe
-   completion of exactly what the task says. Implemented via the
-   `toggle_task` MCP tool (which only toggles `[ ] <-> [x]`).
+   completion of exactly what the task says. Implemented with the CLI's
+   `task toggle` command (which only toggles `[ ] <-> [x]`).
 
 2. **Cross out (abandoned)** - wrap the title in `~~...~~` strikethrough,
    leaving the checkbox unchecked. Use when the task was deliberately not
    done - design pivoted, requirement changed, sub-task obsoleted. This
    visually marks "we're not going to do this" while preserving the
    original text as a historical record. **Requires a direct file edit**
-   because `toggle_task` only handles the checkbox, not the title wrap.
+   because `task toggle` only handles the checkbox, not the title wrap.
 
 3. **Add note** - append an indented italicized line below the task
    explaining context: why it was skipped, what replaced it, what's still
@@ -147,11 +158,11 @@ leave the rest"), or "none."
 
 For each approved operation, use the right tool:
 
-- **Check** -> `mcp__project-tracker__toggle_task(name=<project_name>,
-  source_file=<source_file_absolute>, line_number=<line_number>)`.
-  Note the ABSOLUTE path (use `source_file_absolute` from the MCP
-  response, not `source_file`). Fallback without the MCP server: Edit
-  tool on the file - change `- [ ]` to `- [x]` on that exact line.
+- **Check** -> `project-tracker task toggle example /repo/PLAN.md 8 --expected-title "Raw task title" --json`.
+  Note the ABSOLUTE path (use `source_file_absolute` from the reconciliation
+  response, not `source_file`). The expected title protects against a changed
+  line. Fallback without the CLI: Edit tool on the file - change `- [ ]` to
+  `- [x]` on that exact line.
 
 - **Cross out** -> Edit tool on the PLAN.md file. Wrap the task title in
   `~~...~~`, preserving the `- [ ]` checkbox prefix. Example:
@@ -228,7 +239,7 @@ After executing, briefly summarize: "Checked lines 44. Crossed out lines
 - If the cache was stale but refresh failed (see Step 3), downgrade
   your confidence and tell the user explicitly.
 - When the user just committed work and is asking "did this land?",
-  proactively use `max_cache_age_seconds=0` to force fresh data. The
+  proactively use `--max-cache-age-seconds 0` to force fresh data. The
   default threshold is too generous for just-shipped work.
 
 **Partial completion:**

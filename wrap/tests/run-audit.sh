@@ -497,9 +497,10 @@ else
 	MAX_TURNS="${WRAP_AUDIT_MAX_TURNS:-10}"
 fi
 
-# Extra CLI arguments for every turn, word-split. Scenario 10 is a two-arm
-# comparison (project-tracker reachable vs not) and the second arm is
-# `WRAP_AUDIT_CLAUDE_ARGS=--strict-mcp-config` - see README.md.
+# Extra CLI arguments for every turn, word-split. Scenario 10's two-arm
+# comparison varies `project-tracker` CLI availability on PATH rather than
+# `--strict-mcp-config` (which only strips MCP servers, not the CLI executable)
+# - see README.md.
 read -r -a EXTRA_CLAUDE_ARGS <<<"${WRAP_AUDIT_CLAUDE_ARGS:-}"
 
 # How many turns the last driven session took, for the per-scenario report line.

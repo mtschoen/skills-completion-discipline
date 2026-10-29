@@ -26,7 +26,7 @@ Use when the user says /wrap, "wrap up", "close out this session", "finish the s
 
 1. **Memory offload first, hygiene second.** The headline job is externalizing what is about to be destroyed. Repo cleanup is equally mandatory but conceptually secondary: if memory offload fails for a repo, do not proceed to destructive cleanup in that repo.
 
-2. **Portable and tool-agnostic.** Wrap works in any repo with or without `project-tracker`, with or without superpowers, on any platform. Describe what needs to happen in prose; let the available tools decide how.
+2. **Portable.** Wrap works in any repo with or without the `project-tracker` CLI, with or without superpowers, on any platform. Use the CLI for fleet-wide state when it is installed and direct repo tools for local checks.
 
 3. **Always fan out.** One `/wrap` covers every repo the session touched, not just the current working directory. Use your own recall of which paths you edited + a dirty-scan cross-check + user confirmation.
 
@@ -116,7 +116,7 @@ The announcement is not bookkeeping. An unannounced branch is indistinguishable 
 Determine which repos the session touched. The repo containing the cwd at the time `/wrap` was invoked is **implicitly in scope** - the user ran the slash command from there with intent, even if the session never edited a file in it. Phase 1's recall then determines what *additional* repos beyond the cwd were touched. In order of precedence:
 
 1. **Recall.** Review the conversation and list every path you edited, created, or ran git commands against. This is the primary source of truth for *additional* repos beyond the cwd.
-2. **Dirty-scan cross-check.** For each recalled path plus the cwd (and their parent repos), check whether the working tree is dirty or has unpushed commits. Use whatever dirty-detection tooling is available - if `project-tracker` MCP tools are present, use them; otherwise run `git status` and `git log @{u}..HEAD` directly.
+2. **Dirty-scan cross-check.** For each recalled path plus the cwd (and their parent repos), check whether the working tree is dirty or has unpushed commits. When the CLI is installed, run `project-tracker find-dirty --json` and `project-tracker find-unpushed --json` and scope the results to these repos; otherwise run `git status` and `git log @{u}..HEAD` directly.
 3. **Confirm with the user.** Present the detected repo list in one message and ask: *"I'll wrap these repos: [list]. Add or remove any?"*
 
 **Not in scope:** Repos the session only *read*, other than the cwd. Reading is not touching, but the cwd is treated as in-scope regardless of whether the session edited it.

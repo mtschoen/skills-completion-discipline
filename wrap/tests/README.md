@@ -50,14 +50,18 @@ Two knobs:
 
 ```bash
 WRAP_AUDIT_MAX_TURNS=20 ./run-audit.sh 20        # long multi-repo wraps
-WRAP_AUDIT_CLAUDE_ARGS=--strict-mcp-config ./run-audit.sh 10   # no MCP servers
+WRAP_AUDIT_CLAUDE_ARGS=--strict-mcp-config ./run-audit.sh 2    # extra Claude CLI args
 ```
 
 `WRAP_AUDIT_CLAUDE_ARGS` appends arguments to every turn. Scenario 10 is a
-two-arm comparison - run it once plainly (project-tracker reachable) and once
-with `--strict-mcp-config` (no MCP servers at all), then diff the two traces.
-Run that comparison in the **default** mode: clean-room mode passes
-`--strict-mcp-config` on every turn, so both arms would be the MCP-less one.
+two-arm CLI availability comparison - run it once with `project-tracker` on
+`PATH` (present arm) and once with `project-tracker` absent from `PATH` (for
+example, prepend or set a `PATH` directory containing `claude` and `git`
+without `project-tracker`; `--strict-mcp-config` only removes MCP server
+registrations, not the `project-tracker` executable). Verify in each
+`trace.jsonl` that the present arm ran `project-tracker` and the absent arm saw
+it unavailable and used raw `git`, then diff the two traces' findings, commits,
+and Phase 4 summaries.
 
 ## Clean-room mode (`-c`) and the control (`-C`)
 
@@ -80,7 +84,7 @@ audited copy beats a copy per skill.
 | lever | what it removes |
 | --- | --- |
 | `--setting-sources project` | user-level settings, so the hooks, and with them every user-installed skill (57 to 17 here) |
-| `--strict-mcp-config` | user-scope MCP servers, so project-tracker is genuinely absent |
+| `--strict-mcp-config` | user-scope MCP servers (CLI tools on `PATH` remain available unless `PATH` is narrowed) |
 | `--plugin-dir` | re-supplies wrap alone, pointed at this checkout |
 
 Two consequences to keep in mind:

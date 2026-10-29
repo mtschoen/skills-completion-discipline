@@ -1,13 +1,13 @@
 ---
 name: project-maintenance
-description: "Use when asked for a repo maintenance pass, cleanup, end-of-session tidy-up or health check, or for fleet sweeps after project-tracker.find_stale_maintenance. Researches each finding for interactive approval or parent review and logs every action in the maintenance record."
+description: "Use when asked for a repo maintenance pass, cleanup, end-of-session tidy-up or health check, or for fleet sweeps after project-tracker find-stale-maintenance. Researches each finding for interactive approval or parent review and logs every action in the maintenance record."
 ---
 
 # Project Maintenance
 
 ## Applicability
 
-Use when the user asks for a maintenance pass, cleanup, end-of-session tidy-up, or health check on a repo. Triggers: 'clean up this project', 'run maintenance', 'end of session cleanup', fleet sweeps that follow project-tracker.find_stale_maintenance. Researched and interactive; every action is logged.
+Use when the user asks for a maintenance pass, cleanup, end-of-session tidy-up, or health check on a repo. Triggers: 'clean up this project', 'run maintenance', 'end of session cleanup', fleet sweeps that follow `project-tracker find-stale-maintenance --json`. Researched and interactive; every action is logged.
 
 End-of-session cleanup for a single repo. Works in two modes:
 
@@ -33,11 +33,11 @@ Turn every hit into a normal finding per `references/finding-schema.md` (evidenc
 
 ### 1. Bootstrap
 
-If the project-tracker MCP server is available, call `project-tracker.get_maintenance_checklist(name=<project>)` first. This returns the combined mechanical status in one shot and saves you most of the shell work. Without it, run the mechanical checks from `references/checklist.md` by hand with git/shell.
+Run `project-tracker maintenance checklist <project> --json` first. This returns the combined mechanical status in one shot and saves you most of the shell work. Without the CLI, run the mechanical checks from `references/checklist.md` by hand with git/shell.
 
-`get_maintenance_checklist` does not yet know about the `clean_init_*` checks below - it emits no findings for them regardless of MCP availability. Always run the "Safe git clean + post-clean init" row of `references/checklist.md` by hand, even when the MCP server answered everything else.
+The checklist does not yet know about the `clean_init_*` checks below and emits no findings for them. Always run the "Safe git clean + post-clean init" row of `references/checklist.md` by hand, even when the CLI answered everything else.
 
-If available, also call `project-tracker.find_stale_memory(days=30)` and scope the result to the current project (without the MCP server, skim the project's memory directory for stale entries yourself).
+Also run `project-tracker find-stale-memory --days 30 --json` and scope the result to the current project. Without the CLI, skim the project's memory directory for stale entries yourself.
 
 ### 2. Research each finding
 
@@ -111,7 +111,7 @@ Build the summary:
 }
 ```
 
-Call `project-tracker.record_maintenance_run(name=<project>, summary=<summary>)` to persist the mechanical log in `.maintenance.json` (or append the entry to `.maintenance.json` directly when the MCP server is absent).
+Pass the summary object on stdin to `project-tracker maintenance record --stdin-json --json` to persist the mechanical log in `.maintenance.json`. The stdin object is `{"name": "<project>", "summary": <summary>}`; add `location_path` when selecting a non-default project location. Without the CLI, append the entry to `.maintenance.json` directly.
 
 Return to the user (interactive) or parent (fleet):
 
