@@ -82,13 +82,13 @@ No automated runner - these are manually triggered by running `/wrap` in a sessi
 
 **Pass criteria:** No errors. No garbage output. The non-git directory is still mentioned in Phase 4.
 
-### 10. project-tracker present vs absent
+### 10. project-tracker CLI present vs absent
 
-**Setup:** Run scenario 2 twice: once on a system with `project-tracker` MCP tools available, once without.
+**Setup:** Run scenario 2 twice: once on a system with the `project-tracker` CLI installed, once without.
 
-**Expected:** Same findings produced, same commits, same Phase 4 summary. The internal path differs (`project-tracker.find_dirty` vs raw `git status`), but the user-visible output is identical.
+**Expected:** Same findings produced, same commits, same Phase 4 summary. The internal path differs (`project-tracker find-dirty --json` vs raw `git status`), but the user-visible output is identical.
 
-**Pass criteria:** Equivalent output across both runs. Confirms tool-agnostic prose.
+**Pass criteria:** Equivalent output across both runs. Confirms the CLI and direct-git paths are equivalent.
 
 ### 11. .claude/scripts/ has one stale scratch + one explicitly-kept script
 

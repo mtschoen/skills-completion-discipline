@@ -8,7 +8,7 @@ A skill that reconciles a single project's PLAN.md/TODO.md against its recent gi
 
 ## What it does
 
-Calls `mcp__project-tracker__get_reconciliation_data`, handles cache freshness, matches unchecked tasks to commits with language judgment (no scoring layer), and presents one entry per task with the verbatim PLAN.md line + line number. On approval applies one of: check, cross out as abandoned, add a note, or leave alone.
+Runs `project-tracker reconciliation <project> --json`, handles cache freshness, matches unchecked tasks to commits with language judgment (no scoring layer), and presents one entry per task with the verbatim PLAN.md line + line number. On approval applies one of: check, cross out as abandoned, add a note, or leave alone.
 
 Companion to `find-task` (which surfaces tasks to *do*).
 
@@ -16,6 +16,6 @@ The authoritative spec is [`SKILL.md`](SKILL.md).
 
 ## Requirements
 
-`project-tracker` is a soft dependency, not a hard requirement: when its MCP server is available this skill calls it for unchecked tasks and recent commits, and when it isn't, it falls back to reading the project's `PLAN.md`/`TODO.md` and `git log` directly (see `SKILL.md` for the fallback procedure). `git-wizard` is project-tracker's internal git-data caching layer - it is not something you install or call yourself; it's mentioned in `SKILL.md` only because its cache-refresh status shows up in project-tracker's response.
+`project-tracker` is a soft dependency, not a hard requirement: its CLI supplies unchecked tasks and recent commits. Without the CLI, the skill reads the project's `PLAN.md`/`TODO.md` and `git log` directly (see `SKILL.md` for the fallback procedure). `git-wizard` is project-tracker's internal git-data caching layer - it is not something you install or call yourself; it's mentioned in `SKILL.md` only because its cache-refresh status shows up in project-tracker's response.
 
 **Repo:** <https://github.com/mtschoen/skills-reconcile-tasks>

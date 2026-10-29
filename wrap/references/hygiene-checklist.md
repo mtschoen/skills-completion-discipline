@@ -65,4 +65,4 @@ Wrap's hygiene checklist is a *subset* of project-maintenance's former checklist
 
 ## Tooling
 
-Follow tool-agnostic guidance: describe *what* to check in prose. The agent picks the best available implementation - project-tracker MCP tools if present (e.g. functions that front-load dirty detection and stale-memory scanning), raw git/grep/find otherwise.
+Use `project-tracker find-dirty --json` and `project-tracker find-stale-memory --json` for fleet-wide dirty and stale-memory scans when the CLI is installed. Use `project-tracker find-unpushed --json` for unpushed commits. Scope the results to the repos in this wrap, and use raw git/grep/find for local checks or when the CLI is not installed.

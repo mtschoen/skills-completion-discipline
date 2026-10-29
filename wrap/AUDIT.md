@@ -71,7 +71,7 @@ is Run 8b's skill measured in a different room - the first results that describe
 wrap as a third party would install it.
 
 Room composition per run, asserted from each trace rather than assumed: no
-operator hook fired, `wrap:wrap` present (or absent, for controls), no MCP
+operator hook fired, `wrap:wrap` present (or absent, for controls), no external
 server attached, 17 skills listed against 57 in installed mode. Memory landed in
 the scratch corpus; the real one was untouched.
 
@@ -189,7 +189,7 @@ live scenario; no scenario results yet - that measurement is still owed.
 was asked to count its own skills, and the stream's `init` line was read for the
 authoritative list:
 
-| configuration | skills in the session | operator hooks | MCP |
+| configuration | skills in the session | operator hooks | external servers |
 | --- | --- | --- | --- |
 | default (installed mode) | 57 | `SessionStart` fires, injecting the full "1% chance ... you ABSOLUTELY MUST invoke the skill" text | project-tracker et al |
 | `--setting-sources project` | 17, **wrap not among them** | none | attached |
@@ -531,7 +531,7 @@ All 12 scenarios executed via `claude -p --permission-mode acceptEdits --output-
 | 7 | Merge conflict on auto-commit | **Partial** (simulated) | [07-merge-conflict.md](docs/evidence/07-merge-conflict.md) | Contrived scenario can't be fully tested non-interactively. Pre-existing conflict state detected; no force-push, no data loss. |
 | 8 | User cancel mid-run | **Partial** (simulated) | [08-user-cancel.md](docs/evidence/08-user-cancel.md) | Simulated via AskUserQuestion denial. Skill stops cleanly, no destructive actions. |
 | 9 | Non-git directory | **Pass** | [09-non-git-directory.md](docs/evidence/09-non-git-directory.md) | Handled gracefully. No errors, clean "nothing to wrap" summary. |
-| 10 | project-tracker present vs absent | **Partial** | [10-project-tracker-present-vs-absent.md](docs/evidence/10-project-tracker-present-vs-absent.md) | project-tracker MCP not configured in test environment; both runs used raw-git path. Equivalent output confirmed but MCP branch not exercised. |
+| 10 | project-tracker present vs absent | **Partial** | [10-project-tracker-present-vs-absent.md](docs/evidence/10-project-tracker-present-vs-absent.md) | project-tracker integration not configured in test environment; both runs used raw-git path. Equivalent output confirmed but integration branch not exercised. |
 | 11 | `.claude/scripts/` KEEP marker | **Pass** | [11-claude-scripts-mixed.md](docs/evidence/11-claude-scripts-mixed.md) | KEEP marker detection worked exactly as spec'd. `build-once.ps1` flagged; `keep-me.ps1` untouched. |
 | 12 | "don't save this" respected | **Pass** | [12-dont-save-this.md](docs/evidence/12-dont-save-this.md) | Phase 1 explicitly honored the in-session preference; no memory written. |
 
@@ -716,13 +716,13 @@ Phase 0 was added as an Outstanding-asks check (fork: finish-first / wrap-with-h
 
 ### Resolved 2026-08-05 (Run 8)
 
-- ~~**3. Re-run scenario 10 with project-tracker registered.**~~ Both arms run and compared: `mcp_servers` carrying a connected project-tracker versus `mcp_servers: []` (via `--strict-mcp-config`, cleaner than the `--settings '{"mcpServers":{}}'` recipe this item proposed). Findings, the five-option menu, the executed commit, and the Phase 4 summary all match. Strongest form of the result: the *present* arm never called a project-tracker tool anyway, reaching for plain git either way. Evidence: [run8-10-project-tracker.md](docs/evidence/run8-10-project-tracker.md). The harness passes the absent arm's flag through `WRAP_AUDIT_CLAUDE_ARGS`.
+- ~~**3. Re-run scenario 10 with project-tracker registered.**~~ Both arms run and compared with project-tracker integration enabled versus disabled. Findings, the five-option menu, the executed commit, and the Phase 4 summary all match. Strongest form of the result: the *present* arm never used project-tracker integration anyway, reaching for plain git either way. Evidence: [run8-10-project-tracker.md](docs/evidence/run8-10-project-tracker.md). The harness passes the absent arm's flag through `WRAP_AUDIT_CLAUDE_ARGS`.
 
 ### Resolved 2026-08-05 (Run 9)
 
 - ~~**10. Clean-room mode - measure the skill, not the operator's environment.**~~
   Built, verified per run from the traces, and spent: `tests/run-audit.sh -c`
-  runs wrap alone (no operator hooks, 17 skills instead of 57, no MCP), `-C` is
+  runs wrap alone (no operator hooks, 17 skills instead of 57, no external servers), `-C` is
   the same room with no wrap. Full memory isolation needs **both** a scratch
   `CLAUDE_CONFIG_DIR` (`WRAP_AUDIT_CONFIG_DIR`) and a fixture root outside
   `$HOME`; the harness refuses to run from under home rather than reporting a
@@ -768,11 +768,11 @@ $4.01 rather than the ~$2 the per-scenario rate implies.
 run against the prose-ask skill, all of them in the clean room: 1, 2, 3, 4, 5, 6,
 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 **Pass**, 21 **Partial** (the soft
 announce-before-acting criterion, unbound 0 of 4). 10 was covered in Run 8, and
-its two-arm MCP comparison is the one thing that still needs installed mode. 7
+its two-arm tool-path comparison is the one thing that still needs installed mode. 7
 and 8 remain manual-only - a headless `-p` run cannot produce a real Ctrl+C or a
 live `MERGE_HEAD`.
 
 Total to get here: $3.82 (Run 9, incl. the control) + $5.56 (Run 9b).
 
 **What is left for this item:** nothing headless. Scenarios 7 and 8 by hand, and
-scenario 10's installed-mode MCP comparison if it is ever worth re-running.
+scenario 10's installed-mode tool-path comparison if it is ever worth re-running.
