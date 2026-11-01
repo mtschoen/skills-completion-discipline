@@ -1,0 +1,15 @@
+[project]
+name = "skills-completion-discipline-ci"
+version = "0.0.0"
+description = "Pinned CI tooling for the skills in this repository; not a published package."
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.1",
+    "pytest",
+]
+
+[tool.uv]
+package = false

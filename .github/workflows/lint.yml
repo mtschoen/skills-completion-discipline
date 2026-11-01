@@ -34,9 +34,11 @@ jobs:
         if: steps.baked.outputs.python != 'true'
         with:
           python-version: '3.13'
-      - name: Install pinned ruff and test tools
+      - name: Install pinned ruff and test tools from uv.lock
         shell: bash
-        run: pip install "ruff==$(cat ci/ruff-version)" pytest
+        run: |
+          uv sync --locked
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
       - name: docs-update
         working-directory: docs-update
         run: |
@@ -93,7 +95,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: ludeeus/action-shellcheck@2.0.0
-        with:
-          severity: error
-          scandir: '.'
+      - name: shellcheck
+        shell: bash
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=error
