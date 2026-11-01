@@ -24,9 +24,9 @@ Host-level sibling of `project-maintenance` for Windows, Linux, and macOS. Sweep
 1. **Run audit with the OS script:**
    - Windows: `pwsh scripts/audit.ps1 -OutputDir "$env:TEMP\mm-audit" -SkipElevated`
    - Linux/macOS: `bash scripts/audit.sh --output-dir "${TMPDIR:-/tmp}/mm-audit" --skip-elevated`
-2. **Read `report.md` and `findings.json`.** Reuses `../project-maintenance/references/finding-schema.md` plus `section`, `os`, `classification`, `reclaim_bytes`, `precondition`, and `action`.
+2. **Read `report.md` and `findings.json`.** Reuses `../project-maintenance/references/finding-schema.md` plus `section`, `os`, `classification`, `reclaim_bytes`, `precondition`, and `action`. Require a successful audit exit and published outputs. Treat "Checked and clean" as positive evidence only for the checks `README.md` lists as corrected; other probes can still report a failed measurement as clean, so read every "Blocked or skipped" entry and those limitations before describing host health.
 3. **Present findings for approval:** show all `safe-mechanical` items as one batch for a single yes/no, then present `needs-judgment` items one per turn. Hand per-repo defects to `project-maintenance`.
-4. **Run cleanup with the approved manifest:** run `-DryRun` first, then `-Execute` / `--execute`, logging to `<OutputDir>/cleanup-log.jsonl`.
+4. **Run cleanup with the approved manifest:** run `-DryRun` first, then `-Execute` / `--execute`, logging to `<OutputDir>/cleanup-log.jsonl`. Inspect the complete log: any failed action returns 1 even when later actions succeed, while refusals retain status 2.
 5. **Write the durable summary** to `$HOME/.claude/handoffs/<host>-health-<date>/REPORT.md`, never leaving it only under temp.
 6. **Record what changed** and emit the elevation handoff block.
 

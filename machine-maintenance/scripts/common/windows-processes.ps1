@@ -140,7 +140,7 @@ function Invoke-ProcessesAudit {
     $wslConfigPath = Join-Path $HomeDir '.wslconfig'
     $wslConfigPresent = Test-Path -LiteralPath $wslConfigPath
     if (-not $wslConfigPresent) {
-        $findings.Add((New-Finding -Section 'processes' -Kind 'wslconfig_missing' -What 'Missing ~/.wslconfig memory and reclaim policy' -Path $wslConfigPath -Evidence "$wslConfigPath does not exist" -Recommendation 'needs_human_judgment' -Confidence 'low' -Rationale 'Setting autoMemoryReclaim=gradual and a memory cap in .wslconfig prevents unbounded vmmemWSL growth' -ActionOnApproval "Create $wslConfigPath with [wsl2] autoMemoryReclaim=gradual" -Classification 'needs-judgment'))
+        $findings.Add((New-Finding -Section 'processes' -Kind 'wslconfig_missing' -What 'Missing ~/.wslconfig memory and reclaim policy' -Path $wslConfigPath -Evidence "$wslConfigPath does not exist" -Recommendation 'needs_human_judgment' -Confidence 'low' -Rationale 'Setting autoMemoryReclaim=gradual and a memory cap in .wslconfig prevents unbounded vmmemWSL growth' -ActionOnApproval "Create $wslConfigPath with [experimental] autoMemoryReclaim=gradual" -Classification 'needs-judgment'))
     } else {
         $clean.Add("$wslConfigPath is present")
     }

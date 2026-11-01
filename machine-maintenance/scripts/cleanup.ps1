@@ -90,6 +90,7 @@ function Test-ItemPrecondition {
 
 $freeBefore = Get-VolumeFreeMap
 $hadRefusal = $false
+$hadFailure = $false
 
 $ExactDeleteDirKinds = @(
     'cache_sublime_index'
@@ -194,7 +195,7 @@ foreach ($item in $items) {
         switch ($kind) {
             'worktree_prunable' {
                 $r = Invoke-CommandWithTimeout -FilePath 'git' -ArgumentList @('-C', $targetPath, 'worktree', 'prune') -TimeoutSeconds 30
-                if ($r.exit_code -ne 0) { $outcome = 'failed'; $stderrStr = $r.stderr }
+                if ($r.exit_code -ne 0) { $outcome = 'failed'; $stderrStr = if ($r.stderr) { $r.stderr } elseif ($r.error) { $r.error } elseif ($r.timed_out) { 'Command timed out' } else { "Command exited with code $($r.exit_code)" } }
             }
             'worktree_merged_clean' {
                 $auditedTip = if ($item.PSObject.Properties['tip_sha']) { ([string]$item.tip_sha).Trim() } else { '' }
@@ -211,7 +212,7 @@ foreach ($item in $items) {
                     $hadRefusal = $true
                 } else {
                     $r = Invoke-CommandWithTimeout -FilePath 'git' -ArgumentList @('-C', $targetPath, 'worktree', 'remove', '--force', '--force', $targetPath) -TimeoutSeconds 30
-                    if ($r.exit_code -ne 0) { $outcome = 'failed'; $stderrStr = $r.stderr }
+                    if ($r.exit_code -ne 0) { $outcome = 'failed'; $stderrStr = if ($r.stderr) { $r.stderr } elseif ($r.error) { $r.error } elseif ($r.timed_out) { 'Command timed out' } else { "Command exited with code $($r.exit_code)" } }
                 }
             }
             'browser_cache_subdir' {
@@ -256,6 +257,9 @@ foreach ($item in $items) {
         $stderrStr = $_.Exception.Message
     }
 
+    if ($outcome -eq 'failed') {
+        $hadFailure = $true
+    }
     [int64]$bytesAfter = 0
     if (-not [string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path -LiteralPath $targetPath)) {
         $bytesAfter = (Measure-TreeFast -LiteralPath $targetPath -TimeoutSeconds 5).bytes
@@ -287,5 +291,8 @@ $volSummary = [ordered]@{
 
 if ($hadRefusal) {
     exit 2
+}
+if ($hadFailure) {
+    exit 1
 }
 exit 0

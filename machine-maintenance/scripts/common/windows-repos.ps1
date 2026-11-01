@@ -62,11 +62,21 @@ function Invoke-ReposAudit {
         $RepoRoots = @($HomeDir)
     }
 
+    $effectiveRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $worktreeParentPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $worktreeParents = [System.Collections.Generic.List[object]]::new()
     $repoDirs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($root in $RepoRoots) {
         if (-not (Test-Path -LiteralPath $root)) { continue }
-        foreach ($dir in @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue)) {
-            if ($dir.Name -like '*-worktrees') { continue }
+        $rootPath = (Get-Item -LiteralPath $root).FullName
+        if (-not $effectiveRoots.Add($rootPath)) { continue }
+        foreach ($dir in @(Get-ChildItem -LiteralPath $rootPath -Directory -ErrorAction SilentlyContinue)) {
+            if ($dir.Name -like '*-worktrees') {
+                if ($worktreeParentPaths.Add($dir.FullName)) {
+                    $worktreeParents.Add([PSCustomObject]@{ Parent = $dir; RootPath = $rootPath })
+                }
+                continue
+            }
             $gitEntry = Join-Path $dir.FullName '.git'
             if (Test-Path -LiteralPath $gitEntry) {
                 [void]$repoDirs.Add($dir.FullName)
@@ -130,7 +140,8 @@ function Invoke-ReposAudit {
     }
 
     # Sibling *-worktrees directories
-    foreach ($wtParent in @(Get-ChildItem -LiteralPath $HomeDir -Directory -Filter '*-worktrees' -ErrorAction SilentlyContinue)) {
+    foreach ($worktreeParent in $worktreeParents) {
+        $wtParent = $worktreeParent.Parent
         $children = @(Get-ChildItem -LiteralPath $wtParent.FullName -Force -ErrorAction SilentlyContinue)
         if ($children.Count -eq 0) {
             $staleWorktreeCount++
@@ -138,7 +149,7 @@ function Invoke-ReposAudit {
             continue
         }
         $parentRepoName = $wtParent.Name -replace '-worktrees$', ''
-        $parentRepoPath = Join-Path $HomeDir $parentRepoName
+        $parentRepoPath = Join-Path $worktreeParent.RootPath $parentRepoName
         foreach ($wtDir in @($children | Where-Object { $_.PSIsContainer })) {
             $wtPath = $wtDir.FullName
             if ($wtPath -eq $PSScriptRoot -or $PSScriptRoot.StartsWith($wtPath, [System.StringComparison]::OrdinalIgnoreCase)) {

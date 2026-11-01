@@ -145,25 +145,65 @@ function Invoke-HarnessAudit {
     }
 
     # 5. npm outdated -g --json
-    $npmOutdated = [ordered]@{}
+    $npmOutdated = $null
+    $npmOutdatedError = $null
     $npmRes = Invoke-CommandWithTimeout -FilePath 'npm' -ArgumentList @('outdated', '-g', '--json') -TimeoutSeconds 15
-    if ($npmRes.stdout -and $npmRes.stdout.StartsWith('{')) {
+    if ($npmRes.timed_out) {
+        $npmOutdatedError = "timed out: $($npmRes.error)"
+    } elseif ($npmRes.error) {
+        $npmOutdatedError = [string]$npmRes.error
+    } elseif ($npmRes.exit_code -notin @(0, 1)) {
+        $npmOutdatedError = "exit $($npmRes.exit_code): $($npmRes.stderr)"
+    } elseif ([string]::IsNullOrWhiteSpace($npmRes.stdout)) {
+        $npmOutdatedError = 'empty JSON response'
+    } else {
         try {
-            $parsedNpm = $npmRes.stdout | ConvertFrom-Json
-            foreach ($p in $parsedNpm.PSObject.Properties) {
-                $npmOutdated[$p.Name] = [ordered]@{
-                    current = $p.Value.current
-                    wanted  = $p.Value.wanted
-                    latest  = $p.Value.latest
+            $parsedNpm = $npmRes.stdout | ConvertFrom-Json -ErrorAction Stop
+            if ($parsedNpm -isnot [PSCustomObject] -or $parsedNpm.PSObject.Properties['error']) {
+                $npmOutdatedError = 'response is not an npm package map'
+            } else {
+                $packageProperties = @($parsedNpm.PSObject.Properties)
+                $validPackageMap = $true
+                foreach ($p in $packageProperties) {
+                    if ($p.Value -isnot [PSCustomObject] -or
+                        -not $p.Value.PSObject.Properties['current'] -or
+                        -not $p.Value.PSObject.Properties['wanted'] -or
+                        -not $p.Value.PSObject.Properties['latest']) {
+                        $validPackageMap = $false
+                        break
+                    }
+                }
+                if (-not $validPackageMap) {
+                    $npmOutdatedError = 'response contains an invalid package entry'
+                } elseif ($npmRes.exit_code -eq 0 -and $packageProperties.Count -ne 0) {
+                    $npmOutdatedError = 'exit 0 with a nonempty package map'
+                } elseif ($npmRes.exit_code -eq 1 -and $packageProperties.Count -eq 0) {
+                    $npmOutdatedError = 'exit 1 with an empty package map'
+                } else {
+                    $npmOutdated = [ordered]@{}
+                    foreach ($p in $packageProperties) {
+                        $npmOutdated[$p.Name] = [ordered]@{
+                            current = $p.Value.current
+                            wanted  = $p.Value.wanted
+                            latest  = $p.Value.latest
+                        }
+                    }
                 }
             }
-        } catch {}
+        } catch {
+            $npmOutdatedError = "unrecognized JSON: $($_.Exception.Message)"
+            $npmOutdated = $null
+        }
     }
-    if ($npmOutdated.Count -gt 0) {
+    if ($npmOutdatedError) {
+        $blocked.Add("npm outdated -g --json could not be evaluated: $npmOutdatedError")
+    } elseif ($null -eq $npmOutdated) {
+        $blocked.Add('npm outdated -g --json could not be evaluated: unrecognized result')
+    } elseif ($npmOutdated.Count -gt 0) {
         $pkgList = ($npmOutdated.Keys | ForEach-Object { "$_ ($($npmOutdated[$_].current) -> $($npmOutdated[$_].latest))" }) -join ', '
         $findings.Add((New-Finding -Section 'harness' -Kind 'npm_global_outdated' -What "$($npmOutdated.Count) global npm package(s) have newer versions" -Path '' -Evidence $pkgList -Recommendation 'needs_human_judgment' -Confidence 'medium' -Rationale 'Global CLI tools have updates available' -ActionOnApproval 'Review and update global npm packages with npm install -g <pkg>@latest when idle' -Classification 'needs-judgment'))
     } else {
-        $clean.Add('Global npm packages are up to date')
+        $clean.Add('npm reported no outdated global packages')
     }
 
     $raw = [ordered]@{

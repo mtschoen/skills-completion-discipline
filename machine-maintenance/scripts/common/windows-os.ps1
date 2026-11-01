@@ -70,42 +70,63 @@ function Invoke-OsAudit {
     # 3. w32tm clock sync state
     $w32tmRes = Invoke-CommandWithTimeout -FilePath 'w32tm.exe' -ArgumentList @('/query', '/status') -TimeoutSeconds 10
     $w32tmSource = 'Unknown'
-    $w32tmSynced = $false
-    if ($w32tmRes.exit_code -eq 0 -and $w32tmRes.stdout) {
+    $w32tmSynced = $null
+    if (-not $w32tmRes.timed_out -and -not $w32tmRes.error -and $w32tmRes.exit_code -eq 0 -and $w32tmRes.stdout) {
         if ($w32tmRes.stdout -match '(?m)^Source:\s*(.+)$') {
-            $w32tmSource = $Matches[1].Trim()
+            $candidateSource = $Matches[1].Trim()
+            if ($candidateSource -and $candidateSource -notmatch '^(?i)Unknown$') {
+                $w32tmSource = $candidateSource
+                $w32tmSynced = $candidateSource -notmatch '(?i)(Local CMOS Clock|Free-running System Clock)'
+            }
         }
-        if ($w32tmSource -and $w32tmSource -notmatch '(?i)(Local CMOS Clock|Free-running System Clock)') {
-            $w32tmSynced = $true
-        }
-    } else {
-        $w32Svc = Get-Service -Name 'w32time' -ErrorAction SilentlyContinue
-        $w32tmSource = if ($w32Svc) { "Service $($w32Svc.Status) ($($w32Svc.StartType))" } else { 'Unavailable' }
     }
 
-    if (-not $w32tmSynced) {
-        $findings.Add((New-Finding -Section 'os' -Kind 'w32tm_unsynced' -What "Windows Time (w32tm) is unsynced (Source: $w32tmSource)" -Path '' -Evidence "w32tm /query /status reported Source: $w32tmSource" -Recommendation 'needs_human_judgment' -Confidence 'high' -Rationale 'Running on the Local CMOS Clock or with w32time stopped causes clock drift that breaks TLS, OAuth, and build timestamps' -ActionOnApproval 'Set-Service w32time -StartupType Automatic; Start-Service w32time; w32tm /resync /rediscover' -Classification 'needs-elevation'))
-    } else {
+    if ($null -eq $w32tmSynced) {
+        $w32Svc = Get-Service -Name 'w32time' -ErrorAction SilentlyContinue
+        $w32tmSource = if ($w32Svc) { "Service $($w32Svc.Status) ($($w32Svc.StartType))" } else { 'Unavailable' }
+        $w32tmEvidence = (@($w32tmRes.error, $w32tmRes.stderr, $w32tmRes.stdout) | Where-Object { $_ }) -join '; '
+        $blocked.Add("w32tm /query /status could not establish synchronization (exit $($w32tmRes.exit_code), source: $w32tmSource): $w32tmEvidence")
+    } elseif ($w32tmSynced) {
         $clean.Add("Windows Time synced (Source: $w32tmSource)")
+    } else {
+        $findings.Add((New-Finding -Section 'os' -Kind 'w32tm_unsynced' -What "Windows Time (w32tm) is unsynced (Source: $w32tmSource)" -Path '' -Evidence "w32tm /query /status reported Source: $w32tmSource" -Recommendation 'needs_human_judgment' -Confidence 'high' -Rationale 'Running on the Local CMOS Clock or with w32time stopped causes clock drift that breaks TLS, OAuth, and build timestamps' -ActionOnApproval 'Set-Service w32time -StartupType Automatic; Start-Service w32time; w32tm /resync /rediscover' -Classification 'needs-elevation'))
     }
 
     # 4. PnP problem devices
     $pnpProblems = [System.Collections.Generic.List[object]]::new()
+    $pnpDeviceCount = $null
+    $pnpKnownDeviceCount = 0
+    $pnpQueryFailed = $false
     try {
-        foreach ($dev in @(Get-PnpDevice -ErrorAction Stop | Where-Object { $_.Status -ne 'OK' -and $_.Status -ne 'Unknown' })) {
-            $pnpProblems.Add([PSCustomObject]@{
-                status      = [string]$dev.Status
-                class       = [string]$dev.Class
-                name        = [string]$dev.FriendlyName
-                instance_id = [string]$dev.InstanceId
-            })
+        $pnpDevices = @(Get-PnpDevice -ErrorAction Stop)
+        $pnpDeviceCount = $pnpDevices.Count
+        foreach ($dev in $pnpDevices) {
+            if ([string]$dev.Status -eq 'Unknown') { continue }
+            $pnpKnownDeviceCount++
+            if ([string]$dev.Status -ne 'OK') {
+                $pnpProblems.Add([PSCustomObject]@{
+                    status      = [string]$dev.Status
+                    class       = [string]$dev.Class
+                    name        = [string]$dev.FriendlyName
+                    instance_id = [string]$dev.InstanceId
+                })
+            }
         }
-    } catch {}
-    if ($pnpProblems.Count -gt 0) {
-        $devSummary = ($pnpProblems | Select-Object -First 5 | ForEach-Object { "$($_.name) [$($_.instance_id)] ($($_.status))" }) -join '; '
-        $findings.Add((New-Finding -Section 'os' -Kind 'pnp_problem_devices' -What "$($pnpProblems.Count) PnP device(s) in non-OK state" -Path '' -Evidence $devSummary -Recommendation 'needs_human_judgment' -Confidence 'medium' -Rationale 'Ghost or degraded PnP devices should be inspected or removed via pnputil' -ActionOnApproval 'Inspect problem devices and remove ghost entries with pnputil /remove-device <InstanceId>' -Classification 'needs-elevation'))
-    } else {
-        $clean.Add('All active PnP devices report Status OK')
+    } catch {
+        $pnpQueryFailed = $true
+        $blocked.Add("Get-PnpDevice query failed: $($_.Exception.Message)")
+    }
+    if (-not $pnpQueryFailed) {
+        if ($pnpProblems.Count -gt 0) {
+            $devSummary = ($pnpProblems | Select-Object -First 5 | ForEach-Object { "$($_.name) [$($_.instance_id)] ($($_.status))" }) -join '; '
+            $findings.Add((New-Finding -Section 'os' -Kind 'pnp_problem_devices' -What "$($pnpProblems.Count) PnP device(s) in non-OK state" -Path '' -Evidence $devSummary -Recommendation 'needs_human_judgment' -Confidence 'medium' -Rationale 'Ghost or degraded PnP devices should be inspected or removed via pnputil' -ActionOnApproval 'Inspect problem devices and remove ghost entries with pnputil /remove-device <InstanceId>' -Classification 'needs-elevation'))
+        } elseif ($pnpDeviceCount -eq 0) {
+            $blocked.Add('Get-PnpDevice returned no devices; device health was not established')
+        } elseif ($pnpKnownDeviceCount -eq 0) {
+            $blocked.Add('Get-PnpDevice returned only unknown device states; device health was not established')
+        } else {
+            $clean.Add("All $pnpKnownDeviceCount observed active PnP devices report Status OK")
+        }
     }
 
     # 5. Reliability stability index
@@ -147,6 +168,9 @@ function Invoke-OsAudit {
         w32tm_source       = $w32tmSource
         w32tm_synced       = $w32tmSynced
         pnp_problems       = $pnpProblems
+        pnp_device_count   = $pnpDeviceCount
+        pnp_known_device_count = $pnpKnownDeviceCount
+        pnp_query_failed   = $pnpQueryFailed
         stability_index    = $stabilityIndex
         defender           = $defender
         long_paths_enabled = $longPathsEnabled

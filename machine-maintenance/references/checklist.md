@@ -1,6 +1,6 @@
 # Machine Maintenance Checklist
 
-Every audit run produces `<OutputDir>/findings.json`, `<OutputDir>/report.md`, and per-section raw measurements under `<OutputDir>/raw/<section>.json`.
+Every successful audit run produces `<OutputDir>/findings.json`, `<OutputDir>/report.md`, and per-section raw measurements under `<OutputDir>/raw/<section>.json`. Output publication failures return nonzero without an `Audit complete` message. For the checks `README.md` lists as corrected, clean claims require recognized successful evidence and failed, timed-out, malformed, and unavailable checks belong under `Blocked or skipped`; that guarantee is per-check, not host-wide, because a failed size or process probe elsewhere can still produce a clean bullet. Cleanup returns 1 after any failed action and 2 after a refusal, while retaining later per-item and volume-summary log records.
 
 ## Finding schema extension
 
@@ -48,7 +48,7 @@ Any path that cannot be read due to permissions or elevation is recorded under `
 
 | Check | Why | Command / mechanism | Elevation |
 | --- | --- | --- | --- |
-| Repository enumeration | Discover all local checkouts without unbounded scans | `project-tracker list --json` if available, plus `-RepoRoots` (`$HOME` one level deep, common dev roots, and `$HOME/*-worktrees/*`) | No |
+| Repository enumeration | Discover all local checkouts without unbounded scans | `project-tracker list --json` if available, plus `-RepoRoots`: enumerate one level deep under each supplied root, including sibling `*-worktrees` parents; default to `$HOME` only when no roots are supplied | No |
 | Per-repo status and branch health | Catch dirty trees, `[gone]` branches, unpushed commits, stashes, `.git` bloat (>500 MB), and `master` default branches | `git -C <repo> status --porcelain`; `git -C <repo> branch --format='%(refname:short)\|%(upstream:track)\|%(committerdate:iso8601)'`; `git -C <repo> worktree list --porcelain`; `git -C <repo> stash list`; `git -C <repo> log --branches --not --remotes --oneline`; `git -C <repo> count-objects -vH` | No |
 | Worktree classification | Separate `merged-safe-to-remove`, `prunable`, and `empty-parent` from `unmerged-WIP` or `unknown` | Check `git -C <wt> status --porcelain` and `git -C <wt> merge-base --is-ancestor HEAD origin/main`. Check stray worktrees in `.claude/worktrees`, `.worktrees`, and top-level temp directories | No |
 | Squash-merged branch detection | In squash-merge repos, `merge-base --is-ancestor` is false even after landing | When both `-ForgeToken` and `-TrustedForgeBaseUrl` (https only) are provided, query merged PR `head.sha` values from that configured forge API and run `{ echo <tip>; echo --not; echo origin/main; cat merged-heads.txt; } \| git rev-list --stdin --count`. The token is sent only to the configured base URL, never to a repo's origin host. Output `0` proves the tip landed. Without both parameters, classify non-ancestor tips as `unknown` (`needs-judgment`) and include `git diff origin/main..HEAD --stat` | No |
@@ -64,6 +64,8 @@ Any path that cannot be read due to permissions or elevation is recorded under `
 | Failed services and scheduled tasks | Scheduled tasks firing into missing binaries or failing every 5 minutes | `Get-ScheduledTask \| Where-Object State -ne 'Disabled'` joined with `Get-ScheduledTaskInfo`; verify action binary exists on disk | `systemctl --failed`; `systemctl --user --failed`; `systemctl list-timers --all` | `launchctl list \| awk '$2 != 0 && $2 != "-"'` | No |
 | Wildcard network listeners | Services binding `0.0.0.0` or `::` unnecessarily when a local reverse proxy already fronts them | `Get-NetTCPConnection -State Listen` joined to process names | `ss -tlnp` | `lsof -iTCP -sTCP:LISTEN -n -P` | Full PID mapping may need elevation |
 | WSL and event log health | Uncapped WSL RAM/VHDX or repeating application crashes | `wsl --status`, `wsl --list --verbose`, `$HOME\.wslconfig` check; `Get-WinEvent` Application/System Level 2 in last 7 days | `journalctl -p err --since "7 days ago"` | `log show --predicate 'messageType == error' --last 1d` (summary) | No |
+
+Current limitation: macOS launch-agent and listener health are not evaluated. The audit reports them as blocked or skipped; the commands above are manual guidance.
 
 ---
 
@@ -91,6 +93,8 @@ See `references/systemic-checks.md` for full background.
 | Retired model pins & stale trust entries | Retired model IDs (`gpt-5.6`, `terra`, or any `-fast` variant) or wrong-tier pins cause runtime failures | Inspect `$HOME/.config/opencode/opencode.json`, `$HOME/.qwen/settings.json`, `$HOME/.codex/config.toml` (including `[projects]` paths), `$HOME/.pr-crew/config.toml`, `$HOME/.claude/settings.json` | No |
 | Global CLI currency | Outdated agent CLIs miss protocol fixes | `npm outdated -g --json` | No |
 
+Current limitation: Unix hook validation, MCP command resolution, and stale-project evaluation are not implemented. The Unix audit reports them as blocked or skipped; model-ID clean claims name only successfully inspected files.
+
 ---
 
 ## Section 6: `os` (Operating system and hardware health)
@@ -102,3 +106,5 @@ See `references/systemic-checks.md` for full background.
 | Pending reboot & updates | Pending file renames or servicing reboots block installer and driver updates | Check CBS `RebootPending`, WindowsUpdate `RebootRequired`, `PendingFileRenameOperations` | Check `/var/run/reboot-required`; `needrestart -b` | `softwareupdate -l` | No |
 | Drivers, crashes & stability | Degraded kernel drivers (`Get-PnpDevice`), WHEA hardware errors, or repeating app crashes | `Get-PnpDevice \| Where-Object Status -ne 'OK'`; `Win32_ReliabilityStabilityMetrics`; System event IDs 41, 1001, 6008 | `dmesg -T --level=err,crit,alert,emerg` | `system_profiler SPDiagnosticsDataType` | Some event logs / `dmesg` need elevation |
 | Security & filesystem settings | Defender status, over-broad exclusions, `LongPathsEnabled`, and git `fsmonitor`/`untrackedCache` | `Get-MpComputerStatus`; `HKLM:\...\FileSystem` `LongPathsEnabled`; `git config --global core.longpaths`, `core.fsmonitor`, `core.untrackedCache` | `git config --global core.fsmonitor`, `core.untrackedCache` | `git config --global core.fsmonitor`, `core.untrackedCache` | Reading Defender exclusions needs admin |
+
+Current limitation: Linux and macOS SMART and clock health are not evaluated. The audit reports both as blocked or skipped; `smartctl`, `timedatectl`, `diskutil`, and `sntp` remain manual guidance rather than executed health evidence.

@@ -143,9 +143,35 @@ function Invoke-CommandWithTimeout {
     try {
         $cmd = Get-Command -Name $FilePath -ErrorAction Stop
         $psi = [System.Diagnostics.ProcessStartInfo]::new()
-        $psi.FileName = $cmd.Source
-        foreach ($arg in $ArgumentList) {
-            $psi.ArgumentList.Add($arg)
+        $extension = [System.IO.Path]::GetExtension($cmd.Source)
+        if ($extension -eq '.ps1') {
+            $psi.FileName = [Environment]::ProcessPath
+            foreach ($arg in @('-NoProfile', '-File', $cmd.Source) + $ArgumentList) {
+                $psi.ArgumentList.Add($arg)
+            }
+        } elseif ($extension -in @('.cmd', '.bat')) {
+            $psi.FileName = if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }
+            $variablePrefix = "MM_$([Guid]::NewGuid().ToString('N'))"
+            $commandVariable = "${variablePrefix}_COMMAND"
+            $psi.Environment[$commandVariable] = $cmd.Source
+            # Launch the batch file directly: CALL reparses its expanded command
+            # line, so a literal %PATH% argument expands a second time and quoted
+            # carets double. Delayed expansion inserts each value only after cmd
+            # has tokenized the line, which keeps metacharacters data, and an
+            # embedded quote is doubled so the value stays inside one quoted
+            # token for the batch parameter split.
+            $commandLine = "`"!$commandVariable!`""
+            for ($index = 0; $index -lt $ArgumentList.Count; $index++) {
+                $argumentVariable = "${variablePrefix}_ARG_$index"
+                $psi.Environment[$argumentVariable] = $ArgumentList[$index].Replace('"', '""')
+                $commandLine += " `"!$argumentVariable!`""
+            }
+            $psi.Arguments = "/D /V:ON /S /C `"$commandLine`""
+        } else {
+            $psi.FileName = $cmd.Source
+            foreach ($arg in $ArgumentList) {
+                $psi.ArgumentList.Add($arg)
+            }
         }
         if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory) -and (Test-Path -LiteralPath $WorkingDirectory)) {
             $psi.WorkingDirectory = $WorkingDirectory

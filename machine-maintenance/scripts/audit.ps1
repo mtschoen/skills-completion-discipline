@@ -105,7 +105,7 @@ if ($sectionRaw.Contains('repos')) {
 $w32tmText = 'not run'
 if ($sectionRaw.Contains('os')) {
     $or = $sectionRaw['os']
-    $syncLabel = if ($or.w32tm_synced) { 'synced' } else { 'unsynced' }
+    $syncLabel = if ($null -eq $or.w32tm_synced) { 'unknown' } elseif ($or.w32tm_synced) { 'synced' } else { 'unsynced' }
     $w32tmText = "w32tm sync state: $syncLabel (Source: $($or.w32tm_source))"
 }
 

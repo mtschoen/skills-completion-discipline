@@ -190,12 +190,20 @@ function Invoke-DiskAudit {
     } catch {}
 
     # Elevated DISM component store check
+    $dismCleanupRecommended = $null
     if ($IsElevated -and -not $SkipElevated) {
         $dismRes = Invoke-CommandWithTimeout -FilePath 'dism.exe' -ArgumentList @('/Online', '/Cleanup-Image', '/AnalyzeComponentStore') -TimeoutSeconds 60
-        if ($dismRes.stdout -match 'Component Store Cleanup Recommended\s*:\s*Yes') {
+        if ($dismRes.timed_out -or $dismRes.error -or $dismRes.exit_code -ne 0) {
+            $dismEvidence = (@($dismRes.error, $dismRes.stderr, $dismRes.stdout) | Where-Object { $_ }) -join '; '
+            $blocked.Add("DISM AnalyzeComponentStore failed (exit $($dismRes.exit_code)): $dismEvidence")
+        } elseif ($dismRes.stdout -match 'Component Store Cleanup Recommended\s*:\s*Yes') {
+            $dismCleanupRecommended = $true
             $findings.Add((New-Finding -Section 'disk' -Kind 'dism_component_store' -What 'WinSxS component store cleanup recommended by DISM' -Path 'C:\Windows\WinSxS' -Evidence 'DISM AnalyzeComponentStore reported Cleanup Recommended: Yes' -Recommendation 'delete' -Confidence 'high' -Rationale 'Reclaims superseded WinSxS component packages' -ActionOnApproval 'dism /Online /Cleanup-Image /StartComponentCleanup' -Classification 'needs-elevation' -ReclaimBytes 0))
-        } else {
+        } elseif ($dismRes.stdout -match 'Component Store Cleanup Recommended\s*:\s*No') {
+            $dismCleanupRecommended = $false
             $clean.Add('WinSxS component store analyze clean')
+        } else {
+            $blocked.Add("DISM AnalyzeComponentStore returned unrecognized output: $($dismRes.stdout)")
         }
     } else {
         $blocked.Add('DISM component store analysis skipped (requires elevation): run `dism /Online /Cleanup-Image /AnalyzeComponentStore`')
@@ -227,6 +235,7 @@ function Invoke-DiskAudit {
         downloads_top  = $downloadsTop
         pagefiles      = $pagefiles
         other_drives   = $otherDrives
+        dism_cleanup_recommended = $dismCleanupRecommended
     }
     return [PSCustomObject]@{
         findings = $findings

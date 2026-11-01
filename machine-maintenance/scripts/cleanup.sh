@@ -140,6 +140,7 @@ def append_log(record: dict) -> None:
 
 free_before = shutil.disk_usage(str(output_dir := log_path.parent)).free
 had_refusal = False
+had_failure = False
 
 for item in items:
     kind = str(item.get("kind", "unknown"))
@@ -265,6 +266,8 @@ for item in items:
         outcome = "failed"
         stderr_str = str(exc)
 
+    if outcome == "failed":
+        had_failure = True
     bytes_after = measure_path_bytes(target_path)
     append_log({
         "timestamp": now,
@@ -287,5 +290,5 @@ append_log({
     "free_after": free_after,
 })
 
-sys.exit(2 if had_refusal else 0)
+sys.exit(2 if had_refusal else 1 if had_failure else 0)
 PYEOF
