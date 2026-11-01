@@ -1,0 +1,36 @@
+{
+  "project_name": "example-project",
+  "project_status": "active",
+  "locations": [
+    {
+      "path": "/example/empty",
+      "role": "documentation",
+      "unchecked_tasks": [],
+      "recent_commits": []
+    },
+    {
+      "path": "/example/active",
+      "role": "implementation",
+      "unchecked_tasks": [
+        {
+          "heading": "Delivery",
+          "title": "Add export command",
+          "source_file": "PLAN.md",
+          "source_file_absolute": "/example/active/PLAN.md",
+          "line_number": 3
+        }
+      ],
+      "recent_commits": [
+        {
+          "Hash": "0123456789abcdef0123456789abcdef01234567",
+          "Message": "feat: add export command",
+          "Date": "2026-10-31T12:00:00Z",
+          "AuthorEmail": "developer@example.com"
+        }
+      ]
+    }
+  ],
+  "cache_age_seconds": 10,
+  "cache_refreshed": false,
+  "truncated": false
+}
