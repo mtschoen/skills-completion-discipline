@@ -244,8 +244,16 @@ RESUME_PROMPT_TEMPLATE = (
     "routing rules: dispatch subagents for well-specified lanes and route "
     "sustained volume to external harnesses (codex, opencode, agy, kimi, local "
     "qwen) as the handoff section How to run the lanes describes; the orchestrator "
-    "seat does triage, briefs, review and delicate steps only. Ask owner questions "
-    "one per turn through the question widget. When the wrap nudge fires and you "
+    "seat does triage, briefs, review and delicate steps only. Obey the attendance "
+    "field in the handoff header. When it is unattended, the owner is away: never "
+    "call the question widget or end a turn on a question; leave owner questions in "
+    "your handoff, take the conventional default on reversible choices and record "
+    "it, park irreversible or owner-only steps and move on, and wrap with status "
+    "blocked once only parked steps remain. Any owner message in this session "
+    "besides this resume prompt makes it attended, unless that message says the "
+    "owner is leaving or not to wait, which makes it unattended. When it is "
+    "attended, ask owner questions one per turn through the "
+    "question widget. When the wrap nudge fires and you "
     "reach a natural stopping point, or the owner asks, wrap and continue the chain "
     "as link {future_link}."
 )
@@ -498,6 +506,197 @@ def read_resume_prompt_template_from_reference() -> str:
     )
     assert match, "Resume prompt fenced block not found in chain.md"
     return match.group(1)
+
+
+LINK_4_REPLAY_HANDOFF_TEMPLATE = """---
+chain: settle-and-cure
+link: 3
+session_id: 00000000-0000-4000-8000-000000000003
+predecessor_handoff: null
+status: continue
+attendance: {attendance}
+successor:
+  name: settle-and-cure-4
+  launch: window
+  session_id: 00000000-0000-4000-8000-000000000004
+---
+
+## Done this link
+- Finished schema migration for local cache state in commit abc1234.
+
+## Inherited owner rulings (do not reopen)
+- None
+
+## Questions waiting for the owner (one per turn, through the question widget)
+- Should the retry backoff cap at 30 seconds (conventional default) or 120 seconds?
+
+## Next steps, in order
+1. [carried: 0] Choose the retry backoff cap for the local worker (reversible; conventional default 30 seconds).
+2. [carried: 0] Merge the release branch into protected `main` (irreversible owner-only step).
+
+## How to run the lanes
+- None
+
+## Worktrees and in-flight work (PRs, background jobs)
+- None
+"""
+
+DEPARTURE_PHRASES = (
+    "going to bed",
+    "heading to bed",
+    "heading out",
+    "full send",
+    "don't ask",
+    "keep going without me",
+    "not to wait",
+)
+
+
+def is_departure_message(message: str) -> bool:
+    normalised = message.strip().lower()
+    return any(phrase in normalised for phrase in DEPARTURE_PHRASES)
+
+
+def evaluate_attendance_transition(
+    handoff_text: str,
+    resume_prompt: str,
+    session_messages: tuple[str, ...],
+) -> tuple[str, str, str]:
+    header_match = re.search(
+        r"^---\r?\n(.*?)^---", handoff_text, re.MULTILINE | re.DOTALL
+    )
+    assert header_match, "Handoff frontmatter not found"
+    attendance_match = re.search(
+        r"^attendance:\s*(attended|unattended)\s*$",
+        header_match.group(1),
+        re.MULTILINE,
+    )
+    assert attendance_match, "Handoff attendance field not found"
+    attendance = attendance_match.group(1)
+
+    normalised_resume_prompt = " ".join(resume_prompt.split())
+    for message in session_messages:
+        if " ".join(message.split()) == normalised_resume_prompt:
+            continue
+        if is_departure_message(message):
+            attendance = "unattended"
+        else:
+            attendance = "attended"
+
+    if attendance == "unattended":
+        return (
+            attendance,
+            "record-reversible-default-and-park-irreversible",
+            "blocked",
+        )
+    return (
+        attendance,
+        "ask-waiting-question-via-widget",
+        "continue",
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "case_identifier",
+        "initial_attendance",
+        "extra_owner_messages",
+        "expected_attendance",
+        "expected_first_turn_action",
+        "expected_wrap_status_when_only_parked_remain",
+    ),
+    [
+        (
+            "inherited-unattended-startup",
+            "unattended",
+            (),
+            "unattended",
+            "record-reversible-default-and-park-irreversible",
+            "blocked",
+        ),
+        (
+            "fresh-departure-message",
+            "attended",
+            ("heading to bed, keep going",),
+            "unattended",
+            "record-reversible-default-and-park-irreversible",
+            "blocked",
+        ),
+        (
+            "genuine-return-message",
+            "unattended",
+            (
+                "heading to bed, keep going",
+                "I am back - use 120 seconds for the retry backoff cap.",
+            ),
+            "attended",
+            "ask-waiting-question-via-widget",
+            "continue",
+        ),
+        (
+            "attended-control",
+            "attended",
+            (),
+            "attended",
+            "ask-waiting-question-via-widget",
+            "continue",
+        ),
+    ],
+    ids=[
+        "inherited-unattended-startup",
+        "fresh-departure-message",
+        "genuine-return-message",
+        "attended-control",
+    ],
+)
+def test_handoff_header_requires_attendance_field(
+    case_identifier: str,
+    initial_attendance: str,
+    extra_owner_messages: tuple[str, ...],
+    expected_attendance: str,
+    expected_first_turn_action: str,
+    expected_wrap_status_when_only_parked_remain: str,
+) -> None:
+    reference_text = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
+    header_match = re.search(
+        r"^```yaml\r?\n(.*?)^```", reference_text, re.MULTILINE | re.DOTALL
+    )
+    assert header_match, "Handoff YAML header block not found in chain.md"
+    assert re.search(
+        r"^attendance: attended \| unattended", header_match.group(1), re.MULTILINE
+    )
+    assert "## Attendance" in reference_text
+    assert "besides the resume prompt" in reference_text
+    assert "besides this resume prompt" in reference_text
+    assert "unless that message says the\nowner is leaving or not to wait" in (
+        reference_text.replace("\r\n", "\n")
+    )
+    assert "Any owner message in this session makes\nit attended." not in (
+        reference_text.replace("\r\n", "\n")
+    )
+
+    handoff_path = "/example/handoffs/2026-11-02-settle-and-cure-3.md"
+    collapsed_prompt, _ = format_printed_launch_command(
+        chain_name="settle-and-cure",
+        next_link=4,
+        model="sonnet",
+        handoff_path=handoff_path,
+        receiving_shell="posix",
+    )
+    handoff_text = LINK_4_REPLAY_HANDOFF_TEMPLATE.format(attendance=initial_attendance)
+    session_messages = (collapsed_prompt, *extra_owner_messages)
+    observed_attendance, observed_action, observed_wrap_status = (
+        evaluate_attendance_transition(
+            handoff_text=handoff_text,
+            resume_prompt=collapsed_prompt,
+            session_messages=session_messages,
+        )
+    )
+    assert observed_attendance == expected_attendance, case_identifier
+    assert observed_action == expected_first_turn_action, case_identifier
+    assert observed_wrap_status == expected_wrap_status_when_only_parked_remain, (
+        case_identifier
+    )
 
 
 def test_resume_prompt_template_has_no_quote_characters() -> None:

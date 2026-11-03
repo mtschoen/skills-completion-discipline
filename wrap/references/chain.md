@@ -22,6 +22,7 @@ link: <n, 1-based; this session's position>
 session_id: <this session's full id>
 predecessor_handoff: <path of the previous link's handoff, or null>
 status: continue | blocked | done
+attendance: attended | unattended   # always present; see Attendance
 successor:            # omitted when status != continue
   name: <chain>-<n+1>
   launch: owner-started | window
@@ -56,9 +57,23 @@ Include every required section, writing "None" where empty:
 
 **Size budget.** A handoff stays under 12 KB (`wc -c`) and aims for about 6 KB; the successor reads all of it before its first action, so every kilobyte is paid again on every link. Check the size after writing and before deleting the predecessor. Over budget means cut: move standing policy and stable recipes into memory notes and leave pointers, shorten "Done this link", and retire carried steps to forge issues. Never split the handoff into a second file.
 
+## Attendance
+
+The `attendance` header field tells the successor whether the owner is there to answer questions. Every handoff sets it.
+
+- Set `unattended` when the owner said in this link that they are leaving or not to wait for them (for example "going to bed", "heading out", "full send", "don't ask", "keep going without me"), or when the predecessor handoff says `unattended` and the owner has sent no message in this link besides the resume prompt.
+- Set `attended` in every other case. Any owner message in this link besides the resume prompt makes it `attended`, unless that message itself says the owner is leaving or not to wait.
+
+An unattended link runs to its stopping point without waiting on the owner:
+
+- It never calls the question widget and never ends a turn with a question. Owner questions stay in its handoff under Questions waiting for the owner.
+- On a reversible choice it takes the conventional default, records the choice and its reason under Done this link, and keeps the matching question so the owner can overturn it.
+- It parks irreversible or owner-only steps in Next steps and moves on to the next step. These include merging to a protected branch, closing issues or PRs, force-pushing, deleting branches, and anything sent to an outside person or service. An inherited ruling that approves that specific action unparks it.
+- It still stops at a permission prompt, which no wording can prevent. Launch an unattended successor with this session's permission mode (see Launch). When that mode is `default`, say in Phase 4 that the successor will stall at its first permission prompt.
+
 ## Stop rule
 
-Choose `continue` when actionable work remains, `blocked` when everything left needs an owner decision, or `done` when no work remains. A `blocked` or `done` handoff ends as a normal wrap without a successor. The safety cap is **10 links**: link 10 can wrap and preserve remaining work as `continue`, but must not launch link 11 or later. State the stop reason in Phase 4. A cancelled or interrupted wrap ends with the interrupted sentinel and no successor launch.
+Choose `continue` when actionable work remains, `blocked` when everything left needs an owner decision, or `done` when no work remains. For an unattended link, parked steps count as needing an owner decision, so a link with only parked steps left chooses `blocked`. A `blocked` or `done` handoff ends as a normal wrap without a successor. The safety cap is **10 links**: link 10 can wrap and preserve remaining work as `continue`, but must not launch link 11 or later. State the stop reason in Phase 4. A cancelled or interrupted wrap ends with the interrupted sentinel and no successor launch.
 
 ## Resume prompt
 
@@ -72,15 +87,25 @@ in order. After writing your own complete handoff, delete that handoff and its
 routing rules: dispatch subagents for well-specified lanes and route
 sustained volume to external harnesses (codex, opencode, agy, kimi, local
 qwen) as the handoff section How to run the lanes describes; the orchestrator
-seat does triage, briefs, review and delicate steps only. Ask owner questions
-one per turn through the question widget. When the wrap nudge fires and you
+seat does triage, briefs, review and delicate steps only. Obey the attendance
+field in the handoff header. When it is unattended, the owner is away: never
+call the question widget or end a turn on a question; leave owner questions in
+your handoff, take the conventional default on reversible choices and record
+it, park irreversible or owner-only steps and move on, and wrap with status
+blocked once only parked steps remain. Any owner message in this session
+besides this resume prompt makes it attended, unless that message says the
+owner is leaving or not to wait, which makes it unattended. When it is
+attended, ask owner questions one per turn through the
+question widget. When the wrap nudge fires and you
 reach a natural stopping point, or the owner asks, wrap and continue the chain
 as link <n+2>.
 ```
 
 ## Launch
 
-The wrap does not start the successor itself in the background. After cleanup and before Phase 4's final lines it prints the exact launch command for the owner to run, so the owner sees the session start, answers its first permission prompt and controls its mode. This session's permission mode is not forwarded: the successor starts in the mode the owner's own settings give it.
+The wrap does not start the successor itself in the background. After cleanup and before Phase 4's final lines it prints the exact launch command for the owner to run, so the owner sees the session start, answers its first permission prompt and controls its mode. For an attended handoff, this session's permission mode is not forwarded: the successor starts in the mode the owner's own settings give it.
+
+An unattended handoff has no owner to run a printed command. On a host with a desktop it uses the new-window launch below, which forwards this session's permission mode; the printed command is only its fallback. An unattended printed command adds `--permission-mode <this session's mode>` after `--model <model>`, so the successor does not drop to `default` mode when the owner starts it on the way out.
 
 **Printed command (the default, and the only path on a host with no desktop).** Print one line, copy-pasteable, to run from this session's working directory:
 
