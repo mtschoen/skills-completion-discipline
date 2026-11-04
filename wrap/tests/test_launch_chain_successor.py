@@ -450,8 +450,11 @@ def test_printed_command_posix_quoting_round_trip(
         )
         environment["REVIEW_SUFFIX"] = "INJECTED_ENV_VALUE"
 
+        # Pass the command over stdin (-s) rather than -c so the Windows-to-Git-Bash
+        # command-line transport cannot collapse backslashes before the shell parses it.
         completed_process = subprocess.run(
-            [shell_executable, "-c", printed_command],
+            [shell_executable, "-s"],
+            input=printed_command,
             env=environment,
             capture_output=True,
             text=True,
