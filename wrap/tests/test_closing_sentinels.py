@@ -2,10 +2,13 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import test_launch_chain_successor
 
 WRAP_DIRECTORY = Path(__file__).resolve().parent.parent
 RUN_AUDIT_SCRIPT = WRAP_DIRECTORY / "tests" / "run-audit.sh"
@@ -28,9 +31,7 @@ FILLED_CHAINED_SENTINEL = (
 
 
 def find_posix_shell_executable() -> str | None:
-    shell_on_path = shutil.which("bash") or shutil.which("sh")
-    if shell_on_path:
-        return str(Path(shell_on_path).resolve())
+    # Native Git Bash must precede WSL launchers for Windows-generated harness paths.
     if os.name == "nt":
         for candidate_path in (
             Path(r"C:\Program Files\Git\bin\bash.exe"),
@@ -39,7 +40,131 @@ def find_posix_shell_executable() -> str | None:
         ):
             if candidate_path.is_file():
                 return str(candidate_path.resolve())
+    shell_on_path = shutil.which("bash") or shutil.which("sh")
+    if shell_on_path:
+        return str(Path(shell_on_path).resolve())
     return None
+
+
+@pytest.mark.parametrize(
+    "shell_module",
+    [
+        pytest.param(sys.modules[__name__], id="closing-sentinels"),
+        pytest.param(test_launch_chain_successor, id="launch-chain-successor"),
+    ],
+)
+@pytest.mark.parametrize(
+    (
+        "platform_name",
+        "bash_on_path",
+        "sh_on_path",
+        "native_candidates_exist",
+        "expected_shell",
+    ),
+    [
+        pytest.param(
+            "nt",
+            "wsl",
+            False,
+            True,
+            "native",
+            id="windowsapps-native-issue-49",
+        ),
+        pytest.param(
+            "nt",
+            "compatible",
+            False,
+            False,
+            "compatible",
+            id="windows-path-fallback",
+        ),
+        pytest.param(
+            "posix",
+            "compatible",
+            False,
+            True,
+            "compatible",
+            id="non-windows-path-first",
+        ),
+        pytest.param(
+            "posix",
+            None,
+            True,
+            False,
+            "sh",
+            id="non-windows-sh-fallback",
+        ),
+        pytest.param(
+            "nt",
+            None,
+            False,
+            False,
+            None,
+            id="no-shell",
+        ),
+    ],
+)
+def test_find_posix_shell_executable(
+    shell_module,
+    platform_name: str,
+    bash_on_path: str | None,
+    sh_on_path: bool,
+    native_candidates_exist: bool,
+    expected_shell: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_path = Path
+    native_candidates = {
+        r"C:\Program Files\Git\bin\bash.exe": tmp_path / "native" / "bin-bash.exe",
+        r"C:\Program Files\Git\usr\bin\bash.exe": tmp_path
+        / "native"
+        / "usr-bin-bash.exe",
+        r"C:\Program Files\Git\bin\sh.exe": tmp_path / "native" / "bin-sh.exe",
+    }
+    if native_candidates_exist:
+        for candidate in native_candidates.values():
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            candidate.touch()
+
+    wsl_bash = tmp_path / "Microsoft" / "WindowsApps" / "bash.exe"
+    compatible_bash = tmp_path / "compatible" / "bash.exe"
+    compatible_sh = tmp_path / "compatible" / "sh"
+    path_shells = {
+        "bash": {"wsl": wsl_bash, "compatible": compatible_bash}.get(bash_on_path),
+        "sh": compatible_sh if sh_on_path else None,
+    }
+    for shell in path_shells.values():
+        if shell is not None:
+            shell.parent.mkdir(parents=True, exist_ok=True)
+            shell.touch()
+    monkeypatch.setenv(
+        "PATH",
+        os.pathsep.join(str(shell.parent) for shell in path_shells.values() if shell),
+    )
+
+    def synthetic_path(value: str | Path) -> Path:
+        return native_candidates.get(str(value), real_path(value))
+
+    monkeypatch.setattr(shell_module, "os", SimpleNamespace(name=platform_name))
+    monkeypatch.setattr(shell_module, "Path", synthetic_path)
+    monkeypatch.setattr(
+        shell_module,
+        "shutil",
+        SimpleNamespace(
+            which=lambda name: str(path_shells[name]) if path_shells[name] else None
+        ),
+    )
+
+    expected_path = {
+        "native": native_candidates[r"C:\Program Files\Git\bin\bash.exe"],
+        "compatible": compatible_bash,
+        "sh": compatible_sh,
+        None: None,
+    }[expected_shell]
+    assert shell_module.find_posix_shell_executable() == (
+        str(expected_path.resolve()) if expected_path is not None else None
+    )
 
 
 def test_skill_carries_all_three_sentinels():

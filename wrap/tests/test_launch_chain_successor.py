@@ -362,9 +362,7 @@ def format_printed_launch_command(
 
 
 def find_posix_shell_executable() -> str | None:
-    shell_on_path = shutil.which("bash") or shutil.which("sh")
-    if shell_on_path:
-        return str(Path(shell_on_path).resolve())
+    # Native Git Bash must precede WSL launchers for Windows-generated harness paths.
     if os.name == "nt":
         for candidate_path in (
             Path(r"C:\Program Files\Git\bin\bash.exe"),
@@ -373,6 +371,9 @@ def find_posix_shell_executable() -> str | None:
         ):
             if candidate_path.is_file():
                 return str(candidate_path.resolve())
+    shell_on_path = shutil.which("bash") or shutil.which("sh")
+    if shell_on_path:
+        return str(Path(shell_on_path).resolve())
     return None
 
 
