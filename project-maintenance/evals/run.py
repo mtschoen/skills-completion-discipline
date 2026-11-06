@@ -97,12 +97,25 @@ def materialize_workspace(scenario_dir: Path, workspace_dir: Path) -> None:
         workspace_dir.mkdir(parents=True)
 
 
+def _find_bash_executable() -> str:
+    """Prefer native Git Bash on Windows; elsewhere retain PATH lookup."""
+    if os.name == "nt":
+        program_files = os.environ.get("ProgramFiles")
+        if program_files:
+            for relative_path in ("Git/bin/bash.exe", "Git/usr/bin/bash.exe"):
+                candidate = Path(program_files) / relative_path
+                if candidate.is_file():
+                    return str(candidate)
+    return shutil.which("bash") or "bash"
+
+
 def run_scenario_script(
     scenario_dir: Path, run_dir: Path, script_name: str, timeout: int = 120
 ) -> tuple[bool, str]:
     """Run scenarios/<name>/<script_name> via bash with cwd at the run dir.
 
     The script sees workspace/ (and may create remotes/) relative to its cwd.
+    The forward-slash script argument lets native Git Bash open Windows paths.
     Returns (ok, stdout-or-error). A missing script is fine: (True, "").
     """
     script = scenario_dir / script_name
@@ -110,7 +123,7 @@ def run_scenario_script(
         return True, ""
     try:
         result = subprocess.run(
-            ["bash", str(script)],
+            [_find_bash_executable(), script.as_posix()],
             capture_output=True,
             text=True,
             encoding="utf-8",

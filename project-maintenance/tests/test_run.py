@@ -5,7 +5,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 
@@ -20,6 +21,27 @@ def load_runner_module():
 
 
 runner = load_runner_module()
+
+
+class FakeWindowsPath:
+    def __init__(self, value, available_files=frozenset()):
+        self.path = PureWindowsPath(value)
+        self.available_files = available_files
+
+    def __truediv__(self, child):
+        return FakeWindowsPath(self.path / child, self.available_files)
+
+    def exists(self):
+        return True
+
+    def is_file(self):
+        return self.path in self.available_files
+
+    def as_posix(self):
+        return self.path.as_posix()
+
+    def __str__(self):
+        return str(self.path)
 
 
 class RunnerTests(unittest.TestCase):
@@ -78,17 +100,23 @@ class RunnerTests(unittest.TestCase):
     def test_run_scenario_script_handles_missing_success_failure_and_timeout(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            scenario_directory = root / "scenario"
-            run_directory = root / "run"
+            scenario_directory = root / "scenario with spaces"
+            run_directory = root / "run with spaces"
             scenario_directory.mkdir()
             run_directory.mkdir()
 
-            self.assertEqual(
-                runner.run_scenario_script(
-                    scenario_directory, run_directory, "missing.sh"
-                ),
-                (True, ""),
-            )
+            with (
+                patch.object(runner, "_find_bash_executable", create=True) as find_bash,
+                patch.object(runner.subprocess, "run") as run_process,
+            ):
+                self.assertEqual(
+                    runner.run_scenario_script(
+                        scenario_directory, run_directory, "missing.sh"
+                    ),
+                    (True, ""),
+                )
+            find_bash.assert_not_called()
+            run_process.assert_not_called()
 
             script = scenario_directory / "setup.sh"
             script.write_text("printf 'ready'\n", encoding="utf-8")
@@ -117,6 +145,143 @@ class RunnerTests(unittest.TestCase):
                 )
             self.assertFalse(successful)
             self.assertEqual(output, "setup.sh timeout after 5s")
+
+    def test_run_scenario_script_prefers_native_git_bash_and_forward_slashes(self):
+        program_files = PureWindowsPath(r"C:\Program Files")
+        native_bin = program_files / "Git/bin/bash.exe"
+        native_usr = program_files / "Git/usr/bin/bash.exe"
+        scenario_directory = FakeWindowsPath(r"C:\work\scenario with spaces")
+
+        for script_name in ("setup.sh", "probe.sh"):
+            with self.subTest(script_name=script_name):
+                with (
+                    patch.object(
+                        runner,
+                        "os",
+                        SimpleNamespace(
+                            name="nt",
+                            environ={"ProgramFiles": str(program_files)},
+                        ),
+                    ),
+                    patch.object(
+                        runner,
+                        "Path",
+                        lambda root: FakeWindowsPath(root, {native_bin, native_usr}),
+                    ),
+                    patch.object(
+                        runner.shutil,
+                        "which",
+                        return_value=(
+                            r"C:\Users\test\AppData\Local\Microsoft"
+                            r"\WindowsApps\bash.EXE"
+                        ),
+                    ),
+                    patch.object(
+                        runner.subprocess,
+                        "run",
+                        return_value=Mock(returncode=0, stdout="ready", stderr=""),
+                    ) as run_process,
+                ):
+                    self.assertEqual(
+                        runner.run_scenario_script(
+                            scenario_directory,
+                            PureWindowsPath(r"C:\work\run"),
+                            script_name,
+                        ),
+                        (True, "ready"),
+                    )
+
+                self.assertEqual(
+                    run_process.call_args.args[0],
+                    [
+                        r"C:\Program Files\Git\bin\bash.exe",
+                        f"C:/work/scenario with spaces/{script_name}",
+                    ],
+                )
+
+    def test_run_scenario_script_shell_selection_fallbacks(self):
+        program_files = PureWindowsPath(r"C:\Program Files")
+        native_bin = program_files / "Git/bin/bash.exe"
+        native_usr = program_files / "Git/usr/bin/bash.exe"
+        path_bash = r"C:\Users\test\AppData\Local\Microsoft\WindowsApps\bash.EXE"
+        cases = [
+            (
+                "second native candidate",
+                "nt",
+                {"ProgramFiles": str(program_files)},
+                {native_usr},
+                path_bash,
+                r"C:\Program Files\Git\usr\bin\bash.exe",
+            ),
+            (
+                "PATH without native candidates",
+                "nt",
+                {"ProgramFiles": str(program_files)},
+                set(),
+                path_bash,
+                path_bash,
+            ),
+            (
+                "PATH without ProgramFiles",
+                "nt",
+                {},
+                {native_bin},
+                path_bash,
+                path_bash,
+            ),
+            (
+                "PATH on non-Windows",
+                "posix",
+                {"ProgramFiles": str(program_files)},
+                {native_bin, native_usr},
+                path_bash,
+                path_bash,
+            ),
+            (
+                "literal bash when PATH lookup misses",
+                "nt",
+                {},
+                set(),
+                None,
+                "bash",
+            ),
+        ]
+
+        for name, os_name, environment, available, path_result, expected in cases:
+            with self.subTest(name=name):
+                with (
+                    patch.object(
+                        runner,
+                        "os",
+                        SimpleNamespace(name=os_name, environ=environment),
+                    ),
+                    patch.object(
+                        runner,
+                        "Path",
+                        lambda root, available=available: FakeWindowsPath(
+                            root, available
+                        ),
+                    ),
+                    patch.object(runner.shutil, "which", return_value=path_result),
+                    patch.object(
+                        runner.subprocess,
+                        "run",
+                        return_value=Mock(returncode=0, stdout="ready", stderr=""),
+                    ) as run_process,
+                ):
+                    self.assertEqual(
+                        runner.run_scenario_script(
+                            FakeWindowsPath(r"C:\scenario"),
+                            PureWindowsPath(r"C:\run"),
+                            "setup.sh",
+                        ),
+                        (True, "ready"),
+                    )
+
+                self.assertEqual(
+                    run_process.call_args.args[0],
+                    [expected, "C:/scenario/setup.sh"],
+                )
 
     def test_invoke_agent_success_builds_command_environment_and_timing(self):
         process = Mock(
