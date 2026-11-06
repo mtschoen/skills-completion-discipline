@@ -7,7 +7,7 @@ A skill that checks whether a finished, verified change made any documentation l
 docs-update is the second step in the completion ritual, sequenced right after smoke-test:
 
 ```text
-finish change -> smoke-test (does it work?) -> docs-update (do the docs still tell the truth?) -> declare done / commit / push / open PR
+finish change -> project gates (tests / lint / coverage) -> smoke-test (does it work? may conclude N/A for prose-only changes) -> docs-update (do the docs still tell the truth?) -> declare done / commit / push / open PR
 ```
 
 It fires once, after the change is verified working and no further edits are planned. It does not fire per-edit mid-work - updating docs before the change settles is wasted effort.

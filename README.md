@@ -19,8 +19,8 @@ and asks a question that has to be answered before the work can be handed over.
 
 | Skill | The question it forces |
 | --- | --- |
-| [`smoke-test`](smoke-test/) | Did you actually run it? |
 | [`maintaining-full-coverage`](maintaining-full-coverage/) | Did the coverage and lint bars hold, or did you move them? |
+| [`smoke-test`](smoke-test/) | Did you actually run it? |
 | [`docs-update`](docs-update/) | Did this change make any documentation lie? |
 | [`escalate-over-shortcut`](escalate-over-shortcut/) | Is this a solution, or a suppression of the problem? |
 | [`reconcile-tasks`](reconcile-tasks/) | Does the plan still describe what actually shipped? |
@@ -33,8 +33,8 @@ runs `/wrap --fast` in a session that has sat idle near the prompt-cache cliff,
 so an abandoned session is wrapped instead of compacted.
 
 They compose deliberately, and in that order. The first four settle the change
-itself: `smoke-test` proves it runs, `maintaining-full-coverage` proves it did
-not cost quality elsewhere, `docs-update` catches the prose it invalidated, and
+itself: `maintaining-full-coverage` proves it did not cost quality elsewhere,
+`smoke-test` proves it runs, `docs-update` catches the prose it invalidated, and
 `escalate-over-shortcut` catches the case where the agent's own draft is a
 dressed-up workaround. The last four settle everything around it:
 `reconcile-tasks` makes the project's written record agree with its commit

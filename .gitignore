@@ -20,3 +20,6 @@ Thumbs.db
 
 # uv virtual environment created by the CI python job.
 .venv/
+
+# Maintenance action history is tracked; no tool regenerates it.
+!.maintenance.json

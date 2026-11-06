@@ -27,7 +27,7 @@ Copy `SKILL.md` to `~/.agents/skills/maintaining-full-coverage/` (or wherever yo
 
 The skill expects projects to maintain an up-to-date coverage and lint report. Generate or update it for each gate run, then follow explicit current-task user instructions and repository policy for tracking, staging, and commits. The report records verification evidence only - status, mode, counts, coverage, lint findings, exclusions - never a narrative of what was implemented.
 
-The report is committed markdown and gets read on the forge during review, so the format is render-safe markdown - headers and tables, not a terminal-aligned plaintext block. Minimal format:
+The report is markdown and, when committed, can be read on the forge during review, so the format is render-safe - headers and tables, not a terminal-aligned plaintext block. Minimal format:
 
 ````markdown
 # myproject - Test Report

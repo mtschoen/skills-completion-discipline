@@ -1,0 +1,82 @@
+{
+  "tasks": {
+    "project-maintenance": {
+      "runs": [
+        {
+          "automated": [
+            {
+              "action": "Ran the complete manual maintenance checklist in the isolated worktree",
+              "detail": "project-tracker maintenance checklist could not resolve this repository by name; stale-memory query returned no entries",
+              "kind": "bootstrap_fallback"
+            },
+            {
+              "action": "Ran the repository lint and test gates",
+              "detail": "146 tests collected: 110 passed, 0 failed, 36 skipped; two eval-only suites collected zero under the CI rule; ruff, markdownlint, and shellcheck clean",
+              "kind": "verification"
+            },
+            {
+              "action": "Kept regenerable verification artifacts",
+              "detail": ".venv (37M) and Python caches remain local; recreate the environment with uv sync --locked",
+              "kind": "junk_files"
+            },
+            {
+              "action": "Appended this run to the project-maintenance history",
+              "detail": ".maintenance.json",
+              "kind": "breadcrumb_update"
+            },
+            {
+              "action": "Aligned the completion order with quality gates before smoke-test",
+              "detail": "README.md and docs-update/README.md now match docs-update/SKILL.md",
+              "kind": "docs_content_drift"
+            },
+            {
+              "action": "Removed the unconditional TEST-REPORT commit requirement",
+              "detail": "maintaining-full-coverage/README.md and SKILL.md now preserve repository-policy Git disposition",
+              "kind": "docs_content_drift"
+            },
+            {
+              "action": "Recorded current verification evidence for review",
+              "detail": "TEST-REPORT.md; committed as a reviewable artifact of this pass, not a universal report policy",
+              "kind": "verification_report"
+            },
+            {
+              "action": "Made the maintenance breadcrumb trackable",
+              "detail": ".gitignore uses !.maintenance.json so the action history survives git clean -ffxd",
+              "kind": "clean_init_maintenance_json_ignored"
+            }
+          ],
+          "head": "be4d8dad2bd99d8f6f284b29594da88c8e5d499e",
+          "rejected": [
+            {
+              "action": "Did not refresh tracking refs",
+              "detail": "git fetch --prune",
+              "kind": "fetch_prune",
+              "reason": "Phase 1 has no fetch approval; direct ls-remote and pull-request API reads supplied current remote evidence instead"
+            },
+            {
+              "action": "Left merged remote branches undeleted",
+              "detail": "feat/absorb-maintenance-skills (PR #4) and fix/restore-per-skill-lint-jobs (PR #3)",
+              "kind": "merged_branch_on_remote",
+              "reason": "The task explicitly prohibits remote destructive actions; both PRs are confirmed merged"
+            },
+            {
+              "action": "Kept the holding branch for owner judgment",
+              "detail": "holding/feat/machine-maintenance has a non-trivial diff from main and no merged PR evidence",
+              "kind": "unmerged_branch",
+              "reason": "No deletion or reconciliation is safe under the task restriction on remote destructive actions"
+            },
+            {
+              "action": "Did not add init.ps1, init.bat, or init.sh",
+              "detail": "The existing restore command is uv sync --locked; no aislop-generated instruction files need restoration",
+              "kind": "clean_init_scripts_missing",
+              "reason": "Three permanent cross-platform recovery wrappers are optional infrastructure beyond the demonstrated maintenance need"
+            }
+          ],
+          "timestamp": "2026-11-06T00:39:57.251687Z",
+          "user_authorized": []
+        }
+      ]
+    }
+  },
+  "version": 1
+}
