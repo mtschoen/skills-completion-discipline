@@ -164,6 +164,12 @@ def test_systemd_failed_query_requires_successful_evidence(
             "linux_journal_vacuum",
             id="recognized-large-usage",
         ),
+        pytest.param(
+            "printf '%s\n' 'Archived and active journals take up 1.2T in the file system.'",
+            "finding",
+            "linux_journal_vacuum",
+            id="recognized-terabyte-usage",
+        ),
     ],
 )
 def test_journal_usage_requires_recognized_successful_output(

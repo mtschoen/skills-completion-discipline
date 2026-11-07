@@ -223,8 +223,8 @@ run_disk_audit() {
             if [[ "$j_status" -ne 0 ]]; then
                 j_usage="${j_usage//$'\n'/; }"
                 printf '[disk] journalctl --disk-usage failed (exit %d): %s\n' "$j_status" "${j_usage:-no output}" >> "$BLOCKED_TMP" || publish_error "Could not append to $BLOCKED_TMP"
-            elif [[ "$j_usage" =~ ^Archived[[:space:]]and[[:space:]]active[[:space:]]journals[[:space:]]take[[:space:]]up[[:space:]]([0-9]+([.][0-9]+)?)([KMGT]?)B?[[:space:]]in[[:space:]]the[[:space:]]file[[:space:]]system\.?$ ]]; then
-                if [[ "${BASH_REMATCH[3]}" == "G" ]]; then
+            elif [[ "$j_usage" =~ ^Archived[[:space:]]and[[:space:]]active[[:space:]]journals[[:space:]]take[[:space:]]up[[:space:]]([0-9]+([.][0-9]+)?)([KMGTP]?)B?[[:space:]]in[[:space:]]the[[:space:]]file[[:space:]]system\.?$ ]]; then
+                if [[ "${BASH_REMATCH[3]}" =~ ^[GTP]$ ]]; then
                     add_finding "disk" "linux_journal_vacuum" "systemd journal ($j_usage)" "/var/log/journal" "$j_usage" \
                         "delete" "high" "Rotate active journal files first so vacuum can reclaim space" \
                         "sudo journalctl --rotate && sudo journalctl --vacuum-size=500M" "needs-elevation" "0" "none"
