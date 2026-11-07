@@ -1,6 +1,6 @@
 # Session chaining
 
-Chain mode runs the normal wrap with Phase 0 branch **w** (wrap with a handoff), then hands off to a fresh Claude Code session that the owner starts from a printed launch command, or that opens in a new visible console window where the machine has a desktop. Each link has its own session id, name and transcript, resumable with `claude --resume`. The handoff and resume-prompt contract is harness-neutral; this launch procedure is for Claude Code.
+Chain mode runs the normal wrap with Phase 0 branch **w** (wrap with a handoff), then hands off to a fresh Claude Code session that the owner starts from a printed launch command, or that opens in a new visible console window where the machine has a desktop. Each link has its own session id, name and transcript, resumable with `claude --resume`. The handoff and resume-prompt contract is harness-neutral; this launch procedure is for Claude Code, with codex and opencode adapters under Launch.
 
 ## Triggers and order
 
@@ -134,6 +134,20 @@ wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap 
 This session's own full id (for the handoff's `session_id` field) is in the `CLAUDE_CODE_SESSION_ID` environment variable of any Bash or PowerShell tool call.
 
 Observed on Windows (host chonkers, 2026-10-06): a window opened with `wt.exe -w new ... pwsh -NoExit -Command "claude ..."` and no scrub rendered without colors, because `NO_COLOR=1` was inherited. The same window opened through `launch-chain-successor.ps1` rendered in color, and `claude agents --json` listed it within 20 seconds with kind `interactive`, its name and its own full session id.
+
+**Other harnesses (codex, opencode).** Neither has a detached interactive launcher, so the successor is a headless re-invocation that receives the resume prompt. Print one line in the same shape as the Claude Code line, with `<quoted resume prompt>` built exactly as above and run from this session's working directory:
+
+```text
+codex exec <quoted resume prompt>
+codex exec resume <session id> <quoted resume prompt>
+opencode run <quoted resume prompt>
+```
+
+- `codex exec` starts a fresh successor session. `codex exec resume <session id>` sends the prompt into an existing session instead (`<session id>` is a UUID or thread name); use it only when continuing a specific recorded session rather than starting link n+1 fresh.
+- `opencode run` takes the prompt as its message argument and starts a new session.
+- When the quoted form is awkward, `codex exec -` reads the prompt from stdin from the `.resume-prompt.txt` written above, as `codex exec - < <quoted prompt file>`, with the file path quoted for the receiving shell by the rules above. That `<` redirection is for a POSIX shell or `cmd.exe` only: PowerShell reserves the `<` operator and rejects the line before codex starts, so in PowerShell use the quoted-argument form in the block above rather than stdin.
+- These adapters do not forward a name, a model or this session's permission mode, and the run is non-interactive, so there is no owner to answer a prompt: record the handoff as `launch: owner-started` with `session_id: null`, and treat the successor as running without an owner at its first permission prompt (set `attendance: unattended` only on the grounds in Attendance).
+- Verified against `codex exec --help`, `codex exec resume --help` and `opencode run --help` on host chonkers (2026-11-06). Other flags exist; this reference names only the forms above.
 
 A printed command leaves nothing running, so Phase 2b has nothing to exclude. A confirmed windowed successor is the intended continuation: Phase 2b leaves it running.
 
