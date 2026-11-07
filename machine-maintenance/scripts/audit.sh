@@ -160,19 +160,29 @@ print(json.dumps(record, ensure_ascii=False))
         "$(json_escape "$tip_sha")" >> "$FINDINGS_TMP" || publish_error "Could not append to $FINDINGS_TMP"
 }
 
+# Sets MEASURED_BYTES. A missing target measures zero; a failed du is recorded as
+# blocked and returns 1 so the caller emits no size claim for that target.
 measure_bytes() {
     local target="$1"
+    MEASURED_BYTES=0
     if [[ ! -e "$target" ]]; then
-        echo 0
-        return
+        return 0
     fi
+    local du_output
+    local du_status
     local kb
-    kb="$(du -sk "$target" 2>/dev/null | awk '{print $1}' | head -n 1)"
-    if [[ -z "$kb" ]]; then
-        echo 0
-    else
-        echo $(( kb * 1024 ))
+    du_output="$(du -sk "$target" 2>&1)"
+    du_status=$?
+    kb="$(printf '%s
+' "$du_output" | awk '{print $1}' | head -n 1)"
+    if [[ "$du_status" -ne 0 || ! "$kb" =~ ^[0-9]+$ ]]; then
+        du_output="${du_output//$'
+'/; }"
+        printf '[disk] du -sk %s failed (exit %d): %s
+' "$target" "$du_status" "${du_output:-no output}" >> "$BLOCKED_TMP" || publish_error "Could not append to $BLOCKED_TMP"
+        return 1
     fi
+    MEASURED_BYTES=$(( kb * 1024 ))
 }
 
 run_disk_audit() {
@@ -187,8 +197,14 @@ run_disk_audit() {
     fi
 
     local b
-    b="$(measure_bytes "$uv_dir")"
-    if [[ "$b" -gt 104857600 ]]; then
+    if ! measure_bytes "$uv_dir"; then
+        b=""
+    else
+        b="$MEASURED_BYTES"
+    fi
+    if [[ -z "$b" ]]; then
+        :
+    elif [[ "$b" -gt 104857600 ]]; then
         add_finding "disk" "cache_uv" "uv cache ($b bytes)" "$uv_dir" "$uv_dir is $b bytes" "needs_human_judgment" "high" \
             "Use uv cache prune only; never run uv cache clean because live venvs use ~/.cache/uv" \
             "uv cache prune" "needs-judgment" "$b" "no_uv_lock" "uv cache prune"
@@ -196,19 +212,31 @@ run_disk_audit() {
         echo "[disk] uv cache under threshold ($b bytes)" >> "$CLEAN_TMP" || publish_error "Could not append to $CLEAN_TMP"
     fi
 
-    b="$(measure_bytes "$pip_dir")"
+    if measure_bytes "$pip_dir"; then
+        b="$MEASURED_BYTES"
+    else
+        b=0
+    fi
     if [[ "$b" -gt 104857600 ]]; then
         add_finding "disk" "cache_pip" "pip cache ($b bytes)" "$pip_dir" "$pip_dir is $b bytes" "needs_human_judgment" "high" \
             "Regenerable pip HTTP wheel cache; purge targets the configured cache, which may differ from the measured path" "pip cache purge" "needs-judgment" "$b" "process_stopped:pip" "pip cache purge"
     fi
 
-    b="$(measure_bytes "$npm_dir")"
+    if measure_bytes "$npm_dir"; then
+        b="$MEASURED_BYTES"
+    else
+        b=0
+    fi
     if [[ "$b" -gt 209715200 ]]; then
         add_finding "disk" "cache_npm" "npm cache ($b bytes)" "$npm_dir" "$npm_dir is $b bytes" "needs_human_judgment" "high" \
             "Regenerable npm cache; clean targets the configured cache, which may differ from the measured path" "npm cache clean --force" "needs-judgment" "$b" "process_stopped:npm" "npm cache clean --force"
     fi
 
-    b="$(measure_bytes "$pnpm_dir")"
+    if measure_bytes "$pnpm_dir"; then
+        b="$MEASURED_BYTES"
+    else
+        b=0
+    fi
     if [[ "$b" -gt 209715200 ]]; then
         add_finding "disk" "cache_pnpm" "pnpm store ($b bytes)" "$pnpm_dir" "$pnpm_dir is $b bytes" "needs_human_judgment" "high" \
             "Prune unreferenced content-addressed packages; prune targets the configured store, which may differ from the measured path" "pnpm store prune" "needs-judgment" "$b" "process_stopped:pnpm" "pnpm store prune"
@@ -240,7 +268,11 @@ run_disk_audit() {
         fi
         for pkg_cache in /var/cache/apt/archives /var/cache/dnf /var/cache/pacman/pkg; do
             if [[ -d "$pkg_cache" ]]; then
-                b="$(measure_bytes "$pkg_cache")"
+                if measure_bytes "$pkg_cache"; then
+                    b="$MEASURED_BYTES"
+                else
+                    b=0
+                fi
                 if [[ "$b" -gt 524288000 ]]; then
                     add_finding "disk" "linux_pkg_cache" "Package cache $pkg_cache ($b bytes)" "$pkg_cache" "$pkg_cache: $b bytes" \
                         "delete" "high" "OS package manager archive cache" "sudo paccache -rk1 || sudo apt-get autoclean" "needs-elevation" "$b" "none"
@@ -259,7 +291,11 @@ run_disk_audit() {
         fi
         local xcode_dd="$HOME/Library/Developer/Xcode/DerivedData"
         if [[ -d "$xcode_dd" ]]; then
-            b="$(measure_bytes "$xcode_dd")"
+            if measure_bytes "$xcode_dd"; then
+                b="$MEASURED_BYTES"
+            else
+                b=0
+            fi
             if [[ "$b" -gt 524288000 ]]; then
                 add_finding "disk" "cache_xcode_deriveddata" "Xcode DerivedData ($b bytes)" "$xcode_dd" "$xcode_dd is $b bytes" \
                     "delete" "high" "Regenerable Xcode build artifacts" "rm -rf \"$xcode_dd\"/*" "safe-mechanical" "$b" "process_stopped:Xcode"
@@ -371,14 +407,24 @@ run_processes_audit() {
         fi
         # Orphan processes with PPID 1 and no controlling TTY
         local orphans
-        orphans="$(ps -eo pid=,ppid=,tty=,comm= 2>/dev/null | awk '$2 == 1 && $3 == "?" && ($4 ~ /^(node|python|pytest|pwsh|bash)$/) {print $1}' | tr '\n' ' ')"
-        if [[ -n "${orphans// /}" ]]; then
-            add_finding "processes" "orphan_processes" "Orphaned background process(es) with PPID 1" "" \
-                "Orphan PIDs: $orphans" "needs_human_judgment" "medium" \
-                "Processes reparented to PID 1 without a TTY may be leaked test or agent subprocesses" \
-                "ps -fp $orphans" "needs-judgment" "0" "none"
+        local ps_output
+        local ps_status
+        ps_output="$(ps -eo pid=,ppid=,tty=,comm= 2>&1)"
+        ps_status=$?
+        if [[ "$ps_status" -ne 0 ]]; then
+            ps_output="${ps_output//$'
+'/; }"
+            printf '[processes] ps -eo pid,ppid,tty,comm failed (exit %d): %s
+' "$ps_status" "${ps_output:-no output}" >> "$BLOCKED_TMP" || publish_error "Could not append to $BLOCKED_TMP"
         else
-            echo "[processes] No orphaned node/python/pytest/bash processes with PPID 1" >> "$CLEAN_TMP" || publish_error "Could not append to $CLEAN_TMP"
+            orphans="$(printf '%s
+' "$ps_output" | awk '$2 == 1 && $3 == "?" && ($4 ~ /^(node|python|pytest|pwsh|bash)$/) {print $1}' | tr '
+' ' ')"
+            if [[ -n "${orphans// /}" ]]; then
+                add_finding "processes" "orphan_processes" "Orphaned background process(es) with PPID 1" ""                     "Orphan PIDs: $orphans" "needs_human_judgment" "medium"                     "Processes reparented to PID 1 without a TTY may be leaked test or agent subprocesses"                     "ps -fp $orphans" "needs-judgment" "0" "none"
+            else
+                echo "[processes] No orphaned node/python/pytest/bash processes with PPID 1" >> "$CLEAN_TMP" || publish_error "Could not append to $CLEAN_TMP"
+            fi
         fi
     else
         echo "[processes] macOS launch-agent health is not evaluated; launchctl inspection is unimplemented" >> "$BLOCKED_TMP" || publish_error "Could not append to $BLOCKED_TMP"

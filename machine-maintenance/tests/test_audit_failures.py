@@ -191,6 +191,60 @@ def test_journal_usage_requires_recognized_successful_output(
 
 
 @pytest.mark.parametrize(
+    ("du_body", "category"),
+    [
+        pytest.param("exit 2", "blocked", id="failure-issue-40"),
+        pytest.param("exit 0", "blocked", id="empty-output-issue-40"),
+        pytest.param("printf '%s\t%s\n' 4 \"$3\"", "clean", id="success-control"),
+    ],
+)
+def test_failed_du_probe_is_blocked_instead_of_zero_bytes(
+    tmp_path: Path, du_body: str, category: str
+) -> None:
+    command_dir = _command_directory(tmp_path)
+    (command_dir / "du").unlink()
+    _write_command(command_dir, "du", du_body)
+    (tmp_path / ".cache" / "uv").mkdir(parents=True)
+
+    result = _run_audit(tmp_path / "out", "disk", command_dir, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    clean, blocked, _findings = _report_categories(tmp_path / "out")
+    if category == "blocked":
+        assert "du -sk" in blocked
+        assert "uv cache" not in clean
+    else:
+        assert "uv cache under threshold (4096 bytes)" in clean
+        assert "du -sk" not in blocked
+
+
+@pytest.mark.parametrize(
+    ("ps_body", "category"),
+    [
+        pytest.param("exit 2", "blocked", id="failure-issue-40"),
+        pytest.param("exit 0", "clean", id="success-control"),
+    ],
+)
+def test_failed_ps_probe_is_blocked_instead_of_no_orphans(
+    tmp_path: Path, ps_body: str, category: str
+) -> None:
+    command_dir = _command_directory(tmp_path)
+    _write_command(command_dir, "ps", ps_body)
+
+    result = _run_audit(tmp_path / "out", "processes", command_dir, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    clean, blocked, findings = _report_categories(tmp_path / "out")
+    assert not [item for item in findings if item["kind"] == "orphan_processes"]
+    if category == "blocked":
+        assert "ps -eo" in blocked
+        assert "No orphaned" not in clean
+    else:
+        assert "No orphaned" in clean
+        assert "ps -eo" not in blocked
+
+
+@pytest.mark.parametrize(
     ("config_text", "category", "expected_count"),
     [
         pytest.param("[user]\n\temail = test@example.com\n", "clean", 0, id="no-value"),
