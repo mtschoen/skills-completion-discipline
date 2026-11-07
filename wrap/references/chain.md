@@ -139,11 +139,15 @@ A printed command leaves nothing running, so Phase 2b has nothing to exclude. A 
 
 ## Final lines and failure behaviour
 
-For a `continue` handoff, name the successor and give the launch line: repeat the printed command (or, for a confirmed window, say "open in a new terminal window") immediately before the sentinel. Then emit the chained sentinel verbatim as the last line, with `<n>` the current link number and `<chain>-<n+1>` the successor's session name (for example `settle-and-cure-6`):
+For a `continue` handoff, name the successor and give the launch line: repeat the printed command (or, for a confirmed window, say "open in a new terminal window") immediately before the sentinel. Then emit the chained sentinel verbatim as the last line, with `<n>` the current link number and `<chain>-<n+1>` the successor's session name (for example `settle-and-cure-6`). The form follows the launch: after a printed command (including the fallback command after a failed window launch):
 
 > `That was a chained /wrap. Link <n> is closed; start <chain>-<n+1> with the command above.`
 
-It is emitted only when the wrap printed a successor launch command or confirmed a window launch. A wrap that stops (status `blocked` or `done`, or the 10-link cap) has no successor and ends with the completed sentinel:
+After a confirmed window launch, where no command was printed and nothing remains for the owner to start:
+
+> `That was a chained /wrap. Link <n> is closed; <chain>-<n+1> is already running in the new terminal window.`
+
+Either form is emitted only when the wrap printed a successor launch command or confirmed a window launch. A wrap that stops (status `blocked` or `done`, or the 10-link cap) has no successor and ends with the completed sentinel:
 
 > That's a /wrap. Go ahead and close the session.
 

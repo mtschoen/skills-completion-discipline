@@ -286,9 +286,13 @@ Keep the summary terse - specific numbers, specific paths, specific decisions. N
 
   > That was an interrupted /wrap. The session is NOT in a clean wrap state - some items may still be dirty, uncommitted, or unsaved.
 
-- **Chained wrap** (a completed wrap that printed a successor launch command or confirmed a window launch; `<n>` is the current link number and `<chain>-<n+1>` the successor's session name, for example `settle-and-cure-6`):
+- **Chained wrap** (a completed wrap that printed a successor launch command or confirmed a window launch; `<n>` is the current link number and `<chain>-<n+1>` the successor's session name, for example `settle-and-cure-6`). Two forms, chosen by how the successor was launched; a printed fallback command after a failed window launch takes the first form:
 
   > `That was a chained /wrap. Link <n> is closed; start <chain>-<n+1> with the command above.`
+
+  After a confirmed window launch, where no command was printed:
+
+  > `That was a chained /wrap. Link <n> is closed; <chain>-<n+1> is already running in the new terminal window.`
 
   An interrupted chained wrap still emits the interrupted sentinel. A chain that stops (status `blocked` or `done`, or the 10-link cap) has no successor and emits the completed sentinel.
 
