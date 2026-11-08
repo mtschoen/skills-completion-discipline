@@ -726,13 +726,16 @@ test('a manual wrap on the main loop counts as done, so idle stretches stop prom
   await completeTurn($)
 
   // The owner asked for /wrap and the turn completed: the session is now done
+  const statusesBeforeManualWrap = statuses.length
   await runWrapSkill($)
   await completeTurn($)
   for (let stretch = 0; stretch < 3; stretch++) {
     await clock.advance(FIFTY_MINUTES)
   }
   expect(submitted.length).toBe(1)
-  expect(statuses[statuses.length - 1]).toMatch(/wrapped/)
+  // A manual wrap pins no status line (the engine draws one as a warning);
+  // the dim transcript line is the only acknowledgement
+  expect(statuses.length).toBe(statusesBeforeManualWrap)
   expect(logged[logged.length - 1]).toMatch(/already wrapped/)
   // Idle compaction is vetoed exactly as after an idle wrap
   expect((await $.session.compact({ trigger: 'auto', messages: ONE_MESSAGE })).skip).toBeDefined()

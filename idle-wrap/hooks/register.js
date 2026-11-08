@@ -324,8 +324,10 @@ async function onTurnComplete($, e, next) {
       isWrapSubmitted = true
       isWrapDone = true
       wrapAttempts = 0
+      // The owner wrapped on purpose, so nothing is wrong: one dim transcript
+      // line says the idle check stood down, and no status line is pinned,
+      // since the engine draws a pinned status as a warning.
       $.ui.log('the session is already wrapped; the idle check stays off until the next prompt')
-      $.ui.status('wrapped; read the summary above, then /exit')
     }
   }
   return next(e)
