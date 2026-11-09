@@ -17,10 +17,12 @@ Write `~/.claude/handoffs/YYYY-MM-DD-<slug>.md`. Give each link a distinct file 
 
 ```yaml
 ---
-chain: <kebab-case chain name, stable across links>
+chain: <kebab-case chain name naming its goal; stable until the chain ends or re-scopes>
+goal: <one line: what finished looks like for this chain>
 link: <n, 1-based; this session's position>
 session_id: <this session's full id>
 predecessor_handoff: <path of the previous link's handoff, or null>
+rescoped_from: <old chain>-<n>   # only on link 1 of a re-scoped chain; see Chain scope
 status: continue | blocked | done
 attendance: attended | unattended   # always present; see Attendance
 successor:            # omitted when status != continue
@@ -30,7 +32,7 @@ successor:            # omitted when status != continue
 ---
 ```
 
-Start a new chain at link 1 with a null predecessor. A resumed link keeps the chain name, advances the link number and points to the handoff it read. Write the complete handoff before the launch step. For `status: continue`:
+Start a new chain at link 1 with a null predecessor, a name that says what the chain is for, and a `goal` line. A resumed link keeps the chain name and goal, advances the link number and points to the handoff it read, unless Chain scope below ends or re-scopes the chain. A handoff written before the `goal` field existed takes its goal from the chain name and its link 1 work. Write the complete handoff before the launch step. For `status: continue`:
 
 - An owner-started launch records `launch: owner-started` with `session_id: null`, because the session has not started yet and remains pending until the owner runs the printed command.
 - A windowed launch opens a console window, confirms startup via `claude agents --json`, and records `launch: window` with the confirmed successor's full `session_id`.
@@ -71,9 +73,19 @@ An unattended link runs to its stopping point without waiting on the owner:
 - It parks irreversible or owner-only steps in Next steps and moves on to the next step. These include merging to a protected branch, closing issues or PRs, force-pushing, deleting branches, and anything sent to an outside person or service. An inherited ruling that approves that specific action unparks it.
 - It still stops at a permission prompt, which no wording can prevent. Launch an unattended successor with this session's permission mode (see Launch). When that mode is `default`, say in Phase 4 that the successor will stall at its first permission prompt.
 
+## Chain scope
+
+A chain exists to reach its `goal`, not to carry whatever work is left. At every chain wrap, before applying the stop rule, compare this link's work and the remaining Next steps with the goal:
+
+- **Goal met.** The chain is finished: choose `done`, even when unrelated work remains. Unrelated leftovers become forge issues, memory notes or owner questions in the terminal handoff; if they need a continuing session, start a new chain for them as described under Pivot. Never keep a finished chain alive to carry leftovers.
+- **Pivot.** The chain has drifted when the lead Next step, and most of the rest, serve a different goal (for example a feature chain whose remaining work is now maintenance and status checks). Re-scope instead of carrying the old name forward. Write this link's handoff as link 1 of a new chain: a new `chain` name and `goal` for the work that remains, `rescoped_from: <old chain>-<n>`, and `predecessor_handoff` still pointing at the handoff this link read, so the consume step works unchanged. Steps that still serve the old goal stay in Next steps only when the new goal covers them; otherwise they become forge issues. Carry counts, rulings and questions carry over unchanged. The successor is `<new chain>-2`, and the 10-link safety cap restarts with the new chain.
+- **Still on goal.** Keep the name and goal and apply the stop rule.
+
+Announce an end or a re-scope with the w plus chain mode announcement before Phase 1, naming the old chain, the new one and the reason, and repeat it in Phase 4. An attended link proposes the new name in that announcement, and the owner can rename it. An unattended link never re-scopes on its own, because re-scoping restarts the safety cap: it keeps the chain name and records the proposed re-scope under Questions waiting for the owner. Ending a chain whose goal is met (`done`) needs no owner.
+
 ## Stop rule
 
-Choose `continue` when actionable work remains, `blocked` when everything left needs an owner decision, or `done` when no work remains. For an unattended link, parked steps count as needing an owner decision, so a link with only parked steps left chooses `blocked`. A `blocked` or `done` handoff ends as a normal wrap without a successor. The safety cap is **10 links**: link 10 can wrap and preserve remaining work as `continue`, but must not launch link 11 or later. State the stop reason in Phase 4. A cancelled or interrupted wrap ends with the interrupted sentinel and no successor launch.
+Apply Chain scope first. Choose `continue` when actionable work remains, `blocked` when everything left needs an owner decision, or `done` when no work remains. For an unattended link, parked steps count as needing an owner decision, so a link with only parked steps left chooses `blocked`. A `blocked` or `done` handoff ends as a normal wrap without a successor. The safety cap is **10 links**: link 10 can wrap and preserve remaining work as `continue`, but must not launch link 11 or later. State the stop reason in Phase 4. A cancelled or interrupted wrap ends with the interrupted sentinel and no successor launch.
 
 ## Resume prompt
 
