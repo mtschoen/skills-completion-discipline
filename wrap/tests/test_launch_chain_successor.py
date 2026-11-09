@@ -194,6 +194,8 @@ def test_launch_chain_successor_prompt_file_handling(
                 str(script_path),
                 "-Name",
                 "chain-successor-test",
+                "-Model",
+                "claude-fable-5-1",
                 "-PermissionMode",
                 "auto",
                 "-PromptFile",
@@ -218,6 +220,8 @@ def test_launch_chain_successor_prompt_file_handling(
             expected_lines = [
                 "-n",
                 "chain-successor-test",
+                "--model",
+                "claude-fable-5-1",
                 "--permission-mode",
                 "auto",
                 file_content,
@@ -232,6 +236,64 @@ def test_launch_chain_successor_prompt_file_handling(
             assert not invocation_log.exists(), (
                 f"Claude CLI must not be invoked for {case_identifier}, but {invocation_log} was written"
             )
+
+
+def test_launch_chain_successor_requires_model() -> None:
+    powershell_executable = find_powershell_executable()
+    if not powershell_executable:
+        pytest.skip("PowerShell executable (pwsh) not found on system")
+
+    script_path = (
+        Path(__file__).parents[1] / "scripts" / "launch-chain-successor.ps1"
+    ).resolve()
+    assert script_path.is_file(), f"Launcher script does not exist at {script_path}"
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        mock_binary_directory = temporary_root / "bin"
+        mock_binary_directory.mkdir()
+        invocation_log = temporary_root / "invoked_arguments.txt"
+        write_mock_claude_executable(mock_binary_directory, invocation_log)
+
+        prompt_file = temporary_root / "resume-prompt.txt"
+        prompt_file.write_text("Standard continuation prompt text", encoding="utf-8")
+
+        safe_system_path = os.pathsep.join(
+            get_safe_child_path_directories(powershell_executable)
+        )
+        environment = os.environ.copy()
+        environment["PATH"] = os.pathsep.join(
+            [str(mock_binary_directory), safe_system_path]
+        )
+
+        completed_process = subprocess.run(
+            [
+                powershell_executable,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(script_path),
+                "-Name",
+                "chain-successor-test",
+                "-PermissionMode",
+                "auto",
+                "-PromptFile",
+                str(prompt_file),
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert completed_process.returncode != 0, (
+            "Expected non-zero returncode without -Model, but command succeeded.\n"
+            f"Standard output:\n{completed_process.stdout}\n"
+            f"Standard error:\n{completed_process.stderr}"
+        )
+        assert not invocation_log.exists(), (
+            f"Claude CLI must not be invoked without -Model, but {invocation_log} was written"
+        )
 
 
 RESUME_PROMPT_TEMPLATE = (

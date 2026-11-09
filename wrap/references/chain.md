@@ -105,7 +105,7 @@ as link <n+2>.
 
 The wrap does not start the successor itself in the background. After cleanup and before Phase 4's final lines it prints the exact launch command for the owner to run, so the owner sees the session start, answers its first permission prompt and controls its mode. For an attended handoff, this session's permission mode is not forwarded: the successor starts in the mode the owner's own settings give it.
 
-An unattended handoff has no owner to run a printed command. On a host with a desktop it uses the new-window launch below, which forwards this session's permission mode; the printed command is only its fallback. An unattended printed command adds `--permission-mode <this session's mode>` after `--model <model>`, so the successor does not drop to `default` mode when the owner starts it on the way out.
+An unattended handoff has no owner to run a printed command. On a host with a desktop it uses the new-window launch below, which forwards this session's model and permission mode; the printed command is only its fallback. An unattended printed command adds `--permission-mode <this session's mode>` after `--model <model>`, so the successor does not drop to `default` mode when the owner starts it on the way out.
 
 **Printed command (the default, and the only path on a host with no desktop).** Print one line, copy-pasteable, to run from this session's working directory:
 
@@ -124,10 +124,10 @@ Unless the owner has said which shell they paste into, assume `cmd.exe` on a Win
 **New visible console window (optional, on a host with a desktop).** The prompt is read from the prompt file above, because Windows Terminal splits its command line at every semicolon and the prompt contains them. On Windows with Windows Terminal (`wt.exe` on PATH), from the PowerShell tool:
 
 ```text
-wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap skill directory>\scripts\launch-chain-successor.ps1" -Name "<chain>-<n+1>" -PermissionMode <this session's mode> -PromptFile "<absolute prompt file path>"
+wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap skill directory>\scripts\launch-chain-successor.ps1" -Name "<chain>-<n+1>" -Model <this session's model alias or id> -PermissionMode <this session's mode> -PromptFile "<absolute prompt file path>"
 ```
 
-`scripts/launch-chain-successor.ps1` removes the variables the window inherits from the tool call (`NO_COLOR`, `CLAUDECODE`, `CLAUDE_PID`, every `CLAUDE_CODE_*`) and then runs `claude -n <name> --permission-mode <mode> <prompt>`. Never start `claude` in the new window without that scrub. The permission mode is the one this session is running in (for example `auto`, `acceptEdits` or `default`); when it cannot be determined, use `default`, never a more permissive mode.
+`scripts/launch-chain-successor.ps1` removes the variables the window inherits from the tool call (`NO_COLOR`, `CLAUDECODE`, `CLAUDE_PID`, every `CLAUDE_CODE_*`) and then runs `claude -n <name> --model <model> --permission-mode <mode> <prompt>`. Never start `claude` in the new window without that scrub. The window form forwards the same `<model>` as the printed command (this session's model alias or id); when the model cannot be determined, print the fallback command instead of guessing a model. The permission mode is the one this session is running in (for example `auto`, `acceptEdits` or `default`); when it cannot be determined, use `default`, never a more permissive mode.
 
 **Confirmation and identity:** After opening the window, confirm that the successor actually started: run `claude agents --json` and match the returned successor name to an entry with kind `interactive`. Once confirmed, record `launch: window` and its full session id in the handoff header. If `wt.exe` fails to start, or if `claude agents --json` does not confirm a running successor within 20 seconds (for example, if `launch-chain-successor.ps1` failed on a missing or empty prompt file), treat the window launch as failed: do not record an unconfirmed window, set `launch: owner-started` with `session_id: null`, state plainly that window launch failed or was unconfirmed, and print the copy-pasteable command as the fallback.
 
