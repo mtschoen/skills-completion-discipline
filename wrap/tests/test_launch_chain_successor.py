@@ -315,7 +315,18 @@ RESUME_PROMPT_TEMPLATE = (
     "besides this resume prompt makes it attended, unless that message says the "
     "owner is leaving or not to wait, which makes it unattended. When it is "
     "attended, ask owner questions one per turn through the "
-    "question widget. When the wrap nudge fires and you "
+    "question widget. Copy auto_through from the handoff header into your own "
+    "handoff unchanged unless the owner changes it. Ask the startup link budget "
+    "question only when this session is attended, the predecessor records "
+    "successor.launch: owner-started with successor.not_started_reason: link budget, "
+    "and your current link number exceeds auto_through. For that unresolved pause, "
+    "ask the question from the wrap skill chain reference before other work, using "
+    "estimated_links_remaining. An estimate alone does not reopen an authorization. "
+    "Even a one-link extension is checked again only at your wrap, when deciding "
+    "whether to start the following link. When the header records "
+    "not_started_reason: manual mode, an inherited manual-mode ruling is never "
+    "reopened, so print the launch command with reason manual mode at your wrap "
+    "instead of asking. When the wrap nudge fires and you "
     "reach a natural stopping point, or the owner asks, wrap and continue the chain "
     "as link {future_link}."
 )
@@ -936,3 +947,496 @@ def test_printed_command_windows_quoting_round_trip(
             "opus",
             collapsed_prompt,
         ]
+
+
+FAST_MODE_REFERENCE_PATH = (
+    Path(__file__).resolve().parents[1] / "references" / ("fast-mode.md")
+)
+
+BUDGET_HANDOFF_TEMPLATE = """---
+chain: settle-and-cure
+goal: Settle the retry backoff cap and merge the release branch.
+link: {link}
+session_id: 00000000-0000-4000-8000-0000000000{link}
+predecessor_handoff: /example/handoffs/2026-11-08-settle-and-cure-{link}.md
+status: continue
+attendance: {attendance}
+auto_through: {auto_through}
+estimated_links_remaining: {estimated_links_remaining}
+successor:
+  name: settle-and-cure-{successor_link}
+  model: opus
+  launch: owner-started
+  session_id: null
+  not_started_reason: {not_started_reason}
+---
+
+## Next steps, in order
+1. [carried: 0] Merge the release branch into protected `main` (irreversible \
+owner-only step).
+"""
+
+
+def read_handoff_budget_fields(handoff_text: str) -> dict[str, str]:
+    """Flattens a handoff header, prefixing the nested successor block."""
+    header_match = re.search(
+        r"^---\r?\n(.*?)^---", handoff_text, re.MULTILINE | re.DOTALL
+    )
+    assert header_match, "Handoff frontmatter not found"
+    fields: dict[str, str] = {}
+    for line in header_match.group(1).splitlines():
+        entry = re.match(r"^(?P<indent>  )?(?P<key>[a-z_]+):\s*(?P<value>.*)$", line)
+        if entry is None:
+            continue
+        key = entry.group("key")
+        if entry.group("indent"):
+            key = f"successor.{key}"
+        fields[key] = entry.group("value").strip()
+    return fields
+
+
+def build_budget_handoff(
+    *,
+    link: int,
+    attendance: str,
+    auto_through: int,
+    estimated_links_remaining: int | None,
+    not_started_reason: str,
+) -> str:
+    return BUDGET_HANDOFF_TEMPLATE.format(
+        link=link,
+        attendance=attendance,
+        auto_through=auto_through,
+        estimated_links_remaining=(
+            "null" if estimated_links_remaining is None else estimated_links_remaining
+        ),
+        successor_link=link + 1,
+        not_started_reason=not_started_reason,
+    )
+
+
+def evaluate_successor_link_budget(handoff_text: str) -> tuple[str, str]:
+    """Returns (startup action, wrap action) for the successor a handoff starts.
+
+    This is a policy simulation, not an agent reading the skill. Startup checks
+    an unresolved pause; wrap checks whether the following link fits the budget.
+    """
+    fields = read_handoff_budget_fields(handoff_text)
+    auto_through = int(fields["auto_through"])
+    successor_link = int(fields["link"]) + 1
+    past_budget = successor_link + 1 > auto_through
+    unresolved_pause = (
+        fields.get("successor.launch") == "owner-started"
+        and fields.get("successor.not_started_reason") == "link budget"
+        and successor_link > auto_through
+    )
+    manual_mode = fields.get("successor.not_started_reason") == "manual mode"
+    attended = fields.get("attendance") == "attended"
+
+    if manual_mode and past_budget:
+        return ("no-link-budget-ask", "print-launch-command:manual mode")
+    startup_action = (
+        "ask-link-budget" if attended and unresolved_pause else "no-link-budget-ask"
+    )
+    wrap_action = "auto-launch"
+    if past_budget:
+        wrap_action = (
+            "ask-link-budget" if attended else "print-launch-command:link budget"
+        )
+    return (startup_action, wrap_action)
+
+
+def simulate_manual_mode_successor_chain(
+    *,
+    start_link: int,
+    successor_count: int,
+    auto_through: int,
+    attendance: str,
+) -> list[tuple[str, str]]:
+    """Runs the budget decision for each owner-started successor in turn.
+
+    A link past the budget in manual mode writes the same ruling it read, so the
+    decision reaches every later link without reopening.
+    """
+    actions: list[tuple[str, str]] = []
+    link = start_link
+    for _ in range(successor_count):
+        handoff = build_budget_handoff(
+            link=link,
+            attendance=attendance,
+            auto_through=auto_through,
+            estimated_links_remaining=3,
+            not_started_reason="manual mode",
+        )
+        actions.append(evaluate_successor_link_budget(handoff))
+        link += 1
+    return actions
+
+
+@pytest.mark.parametrize(
+    ("case_identifier", "attendance", "not_started_reason", "expected"),
+    [
+        (
+            "finding-1-manual-mode-attended-successor-does-not-ask",
+            "attended",
+            "manual mode",
+            ("no-link-budget-ask", "print-launch-command:manual mode"),
+        ),
+        (
+            "finding-1-manual-mode-unattended-successor-does-not-ask",
+            "unattended",
+            "manual mode",
+            ("no-link-budget-ask", "print-launch-command:manual mode"),
+        ),
+        (
+            "finding-1-link-budget-attended-successor-asks",
+            "attended",
+            "link budget",
+            ("ask-link-budget", "ask-link-budget"),
+        ),
+        (
+            "finding-1-link-budget-unattended-successor-prints-at-wrap",
+            "unattended",
+            "link budget",
+            ("no-link-budget-ask", "print-launch-command:link budget"),
+        ),
+    ],
+    ids=[
+        "finding-1-manual-mode-attended-successor-does-not-ask",
+        "finding-1-manual-mode-unattended-successor-does-not-ask",
+        "finding-1-link-budget-attended-successor-asks",
+        "finding-1-link-budget-unattended-successor-prints-at-wrap",
+    ],
+)
+def test_inherited_manual_mode_ruling_is_not_reopened(
+    case_identifier: str,
+    attendance: str,
+    not_started_reason: str,
+    expected: tuple[str, str],
+) -> None:
+    handoff = build_budget_handoff(
+        link=10,
+        attendance=attendance,
+        auto_through=10,
+        estimated_links_remaining=3,
+        not_started_reason=not_started_reason,
+    )
+    assert evaluate_successor_link_budget(handoff) == expected, case_identifier
+
+
+def test_manual_mode_ruling_survives_two_manually_started_successors() -> None:
+    reference_text = " ".join(CHAIN_REFERENCE_PATH.read_text(encoding="utf-8").split())
+    assert (
+        "Record the choice as an inherited owner ruling so it travels to the next "
+        "link." in reference_text
+    )
+    assert "asks no budget question at startup or at its own wrap" in reference_text
+    assert "an inherited manual-mode ruling is never reopened" in reference_text
+    assert "using the recorded estimate. An unattended successor" not in reference_text
+
+    resume_prompt = " ".join(read_resume_prompt_template_from_reference().split())
+    assert "not_started_reason: manual mode" in resume_prompt
+    assert "an inherited manual-mode ruling is never reopened" in resume_prompt
+    assert (
+        "Ask the startup link budget question only when this session is attended, "
+        "the predecessor records successor.launch: owner-started with "
+        "successor.not_started_reason: link budget, and your current link number "
+        "exceeds auto_through" in resume_prompt
+    )
+    assert (
+        "remove `estimated_links_remaining` and `successor.not_started_reason`"
+        in reference_text
+    )
+    assert "Even a one-link extension is checked again only at your wrap" in (
+        resume_prompt
+    )
+    assert "before other work. When the wrap nudge fires" not in resume_prompt
+
+    assert simulate_manual_mode_successor_chain(
+        start_link=10,
+        successor_count=2,
+        auto_through=10,
+        attendance="attended",
+    ) == [
+        ("no-link-budget-ask", "print-launch-command:manual mode"),
+        ("no-link-budget-ask", "print-launch-command:manual mode"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("auto_through", "expected_wrap"),
+    [(13, "auto-launch"), (11, "ask-link-budget")],
+    ids=["pr-63-three-link-extension", "pr-63-one-link-extension"],
+)
+@pytest.mark.parametrize("estimate", ["", "estimated_links_remaining: 3\n"])
+def test_authorized_extension_is_not_reopened_at_startup(
+    auto_through: int, expected_wrap: str, estimate: str
+) -> None:
+    # Policy simulation only; the reference assertions above guard the shipped text.
+    handoff = f"""---
+link: 10
+attendance: attended
+auto_through: {auto_through}
+{estimate}successor:
+  name: settle-and-cure-11
+  launch: tmux
+  session_id: 00000000-0000-4000-8000-000000000011
+---
+"""
+    assert evaluate_successor_link_budget(handoff) == (
+        "no-link-budget-ask",
+        expected_wrap,
+    )
+
+
+def evaluate_done_chain_closeout(
+    *,
+    fast_mode: bool,
+    attended: bool,
+) -> dict[str, object]:
+    """Resolves what a `done` link does at close-out, in the mode it was asked for."""
+    if fast_mode:
+        closeout_deletions = "deferred-to-phase-4-summary"
+    elif attended:
+        closeout_deletions = "phase-3-approval-batch"
+    else:
+        closeout_deletions = "parked-in-next-steps"
+    return {
+        "wrap_mode": "fast" if fast_mode else "full",
+        "terminal_handoff_kept": True,
+        "questions_asked": not fast_mode and attended,
+        "closeout_deletions": closeout_deletions,
+    }
+
+
+def test_goal_met_under_fast_mode_is_not_upgraded_to_a_full_wrap() -> None:
+    reference_text = " ".join(CHAIN_REFERENCE_PATH.read_text(encoding="utf-8").split())
+    assert "a requested `--fast` is never silently upgraded to a full wrap" in (
+        reference_text
+    )
+    assert (
+        "keep the terminal handoff, defer every close-out deletion like any other "
+        "fast-mode deletion" in reference_text
+    )
+    assert "An unattended link parks the same cleanup in Next steps" in reference_text
+    assert "Its own terminal handoff stays as the record in every mode" in (
+        reference_text
+    )
+    assert (
+        "a later wrap the owner explicitly requests as a full wrap performs them"
+        in (reference_text)
+    )
+    assert "runs the full wrap, not `--fast`" not in reference_text
+
+    fast_mode_text = " ".join(
+        FAST_MODE_REFERENCE_PATH.read_text(encoding="utf-8").split()
+    )
+    assert "predecessor handoff, prompt and chain close-out deletions are deferred" in (
+        fast_mode_text
+    )
+
+    assert evaluate_done_chain_closeout(fast_mode=True, attended=True) == {
+        "wrap_mode": "fast",
+        "terminal_handoff_kept": True,
+        "questions_asked": False,
+        "closeout_deletions": "deferred-to-phase-4-summary",
+    }
+    assert evaluate_done_chain_closeout(fast_mode=True, attended=False) == {
+        "wrap_mode": "fast",
+        "terminal_handoff_kept": True,
+        "questions_asked": False,
+        "closeout_deletions": "deferred-to-phase-4-summary",
+    }
+    assert evaluate_done_chain_closeout(fast_mode=False, attended=True) == {
+        "wrap_mode": "full",
+        "terminal_handoff_kept": True,
+        "questions_asked": True,
+        "closeout_deletions": "phase-3-approval-batch",
+    }
+    assert evaluate_done_chain_closeout(fast_mode=False, attended=False) == {
+        "wrap_mode": "full",
+        "terminal_handoff_kept": True,
+        "questions_asked": False,
+        "closeout_deletions": "parked-in-next-steps",
+    }
+
+
+def evaluate_launch_confirmation(
+    *,
+    before: list[dict[str, str]],
+    after: list[dict[str, str]],
+    successor_name: str,
+    launcher: str,
+    launcher_reported_session_id: str | None = None,
+) -> dict[str, object]:
+    """Decides what the handoff records after a launch attempt.
+
+    Confirmation is by the exact successor name. A differently named new session
+    is accepted only when this launch independently tied its id to the successor;
+    the absence of either is a failed launch, never an unconfirmed successor.
+    """
+    listed_ids = {entry["session_id"] for entry in before}
+    new_interactive = [
+        entry
+        for entry in after
+        if entry["kind"] == "interactive" and entry["session_id"] not in listed_ids
+    ]
+    named_successor = next(
+        (entry for entry in new_interactive if entry["name"] == successor_name),
+        None,
+    )
+    correlated_entry = (
+        None
+        if launcher_reported_session_id is None
+        else next(
+            (
+                entry
+                for entry in new_interactive
+                if entry["session_id"] == launcher_reported_session_id
+            ),
+            None,
+        )
+    )
+    confirmed = named_successor or correlated_entry
+    if confirmed is None:
+        return {
+            "launch": "owner-started",
+            "session_id": None,
+            "not_started_reason": "launch failed",
+        }
+    return {
+        "launch": launcher,
+        "session_id": confirmed["session_id"],
+        "not_started_reason": None,
+    }
+
+
+def agent_entry(
+    name: str, session_id: str, kind: str = "interactive"
+) -> dict[str, str]:
+    return {"name": name, "kind": kind, "session_id": session_id}
+
+
+SESSION_ALREADY_RUNNING = agent_entry("settle-and-cure-10", "...0000000010")
+
+
+@pytest.mark.parametrize(
+    ("case_identifier", "after", "launcher", "reported_id", "expected"),
+    [
+        (
+            "exact-name-successor-confirms-the-window",
+            [
+                SESSION_ALREADY_RUNNING,
+                agent_entry("settle-and-cure-11", "...0000000011"),
+            ],
+            "window",
+            None,
+            {
+                "launch": "window",
+                "session_id": "...0000000011",
+                "not_started_reason": None,
+            },
+        ),
+        (
+            "finding-3-unrelated-new-session-is-not-the-successor",
+            [
+                SESSION_ALREADY_RUNNING,
+                agent_entry("unrelated-report-run", "...0000000099"),
+            ],
+            "window",
+            None,
+            {
+                "launch": "owner-started",
+                "session_id": None,
+                "not_started_reason": "launch failed",
+            },
+        ),
+        (
+            "finding-3-renamed-entry-with-launcher-correlation-confirms",
+            [
+                SESSION_ALREADY_RUNNING,
+                agent_entry("settle-and-cure-11-fork", "...0000000012"),
+            ],
+            "window",
+            "...0000000012",
+            {
+                "launch": "window",
+                "session_id": "...0000000012",
+                "not_started_reason": None,
+            },
+        ),
+        (
+            "finding-3-renamed-entry-without-correlation-is-unconfirmed",
+            [
+                SESSION_ALREADY_RUNNING,
+                agent_entry("settle-and-cure-11-fork", "...0000000012"),
+            ],
+            "tmux",
+            None,
+            {
+                "launch": "owner-started",
+                "session_id": None,
+                "not_started_reason": "launch failed",
+            },
+        ),
+        (
+            "background-session-is-never-a-successor",
+            [
+                SESSION_ALREADY_RUNNING,
+                agent_entry("settle-and-cure-11", "...0000000013", kind="background"),
+            ],
+            "tmux",
+            None,
+            {
+                "launch": "owner-started",
+                "session_id": None,
+                "not_started_reason": "launch failed",
+            },
+        ),
+        (
+            "no-new-session-fails-the-launch",
+            [SESSION_ALREADY_RUNNING],
+            "window",
+            None,
+            {
+                "launch": "owner-started",
+                "session_id": None,
+                "not_started_reason": "launch failed",
+            },
+        ),
+    ],
+    ids=[
+        "exact-name-successor-confirms-the-window",
+        "finding-3-unrelated-new-session-is-not-the-successor",
+        "finding-3-renamed-entry-with-launcher-correlation-confirms",
+        "finding-3-renamed-entry-without-correlation-is-unconfirmed",
+        "background-session-is-never-a-successor",
+        "no-new-session-fails-the-launch",
+    ],
+)
+def test_launch_confirmation_requires_the_intended_successor(
+    case_identifier: str,
+    after: list[dict[str, str]],
+    launcher: str,
+    reported_id: str | None,
+    expected: dict[str, object],
+) -> None:
+    reference_text = " ".join(CHAIN_REFERENCE_PATH.read_text(encoding="utf-8").split())
+    assert "The launched successor is confirmed by its exact successor name" in (
+        reference_text
+    )
+    assert "confirmation is by exact name" in reference_text
+    assert "proves only that the container exists" in reference_text
+    assert "without that correlation, report an unconfirmed launch" in reference_text
+    assert "by its new session id when the listing shows a different name" not in (
+        reference_text
+    )
+
+    recorded = evaluate_launch_confirmation(
+        before=[SESSION_ALREADY_RUNNING],
+        after=after,
+        successor_name="settle-and-cure-11",
+        launcher=launcher,
+        launcher_reported_session_id=reported_id,
+    )
+    assert recorded == expected, case_identifier

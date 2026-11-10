@@ -20,13 +20,28 @@ INTERRUPTED_SENTINEL = (
     "That was an interrupted /wrap. The session is NOT in a clean wrap state - "
     "some items may still be dirty, uncommitted, or unsaved."
 )
-CHAINED_SENTINEL = (
+CHAINED_WINDOW_SENTINEL = (
     "That was a chained /wrap. Link <n> is closed; "
-    "start <chain>-<n+1> with the command above."
+    "<chain>-<n+1> is already running in a new terminal window. "
+    "Do not paste anything."
+)
+CHAINED_TMUX_SENTINEL = (
+    "That was a chained /wrap. Link <n> is closed; "
+    "<chain>-<n+1> is already running in tmux. "
+    "Open it with the command above; do not start another."
+)
+CHAINED_NOT_STARTED_SENTINEL = (
+    "That was a chained /wrap. Link <n> is closed; "
+    "<chain>-<n+1> has NOT been started. Paste the command above to continue."
+)
+CHAINED_SENTINELS = (
+    CHAINED_WINDOW_SENTINEL,
+    CHAINED_TMUX_SENTINEL,
+    CHAINED_NOT_STARTED_SENTINEL,
 )
 FILLED_CHAINED_SENTINEL = (
     "That was a chained /wrap. Link 1 is closed; "
-    "start settle-and-cure-2 with the command above."
+    "settle-and-cure-2 has NOT been started. Paste the command above to continue."
 )
 
 
@@ -170,11 +185,41 @@ def test_find_posix_shell_executable(
 def test_skill_carries_all_three_sentinels():
     assert COMPLETED_SENTINEL in SKILL_TEXT
     assert INTERRUPTED_SENTINEL in SKILL_TEXT
-    assert CHAINED_SENTINEL in SKILL_TEXT
+    for chained_sentinel in CHAINED_SENTINELS:
+        assert chained_sentinel in SKILL_TEXT
 
 
-def test_chain_reference_ends_a_launching_wrap_with_the_chained_sentinel():
-    assert CHAINED_SENTINEL in CHAIN_TEXT
+def test_chain_reference_carries_every_chained_sentinel_form():
+    for chained_sentinel in CHAINED_SENTINELS:
+        assert chained_sentinel in CHAIN_TEXT
+
+
+def test_chained_sentinel_forms_say_whether_the_successor_is_running():
+    assert "already running" in CHAINED_WINDOW_SENTINEL
+    assert "already running" in CHAINED_TMUX_SENTINEL
+    assert "NOT been started" in CHAINED_NOT_STARTED_SENTINEL
+    assert len(set(CHAINED_SENTINELS)) == len(CHAINED_SENTINELS)
+
+
+@pytest.mark.parametrize(
+    "expected_substring",
+    [
+        "Automatic launch is the rule.",
+        "auto_through: <link number>",
+        "estimated_links_remaining",
+        "Not auto-started: <reason>",
+        "This session's model is not the default.",
+        "Take a fresh reading for the pool the successor's model draws from",
+        "tmux attach -t <chain>-<n+1>",
+        "tmux switch-client -t <chain>-<n+1>",
+        "A display alone does not qualify for a window",
+        "a new name for the same goal is not a pivot",
+    ],
+)
+def test_chain_reference_states_the_automatic_launch_contract(
+    expected_substring: str,
+) -> None:
+    assert expected_substring in CHAIN_TEXT
 
 
 @pytest.mark.parametrize(

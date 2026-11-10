@@ -2,7 +2,7 @@
 
 How each interactive gate resolves when wrap runs as `/wrap --fast`. The two hard invariants (no questions; safe, additive actions only) and the over-share posture are in SKILL.md; this table is the per-phase resolution.
 
-Chain mode behaves the same with `--fast`: printing the successor's launch command is a safe, additive action; the handoff and stop rules in `chain.md` still apply, except that predecessor handoff and prompt deletion is deferred to preserve the no-deletion guarantee.
+Chain mode behaves the same with `--fast`: starting the successor, or printing its launch command, is a safe, additive action; the handoff, stop and automatic-launch rules in `chain.md` still apply, except that predecessor handoff, prompt and chain close-out deletions are deferred to preserve the no-deletion guarantee, and the link budget question is never asked: a chain at its budget prints the launch command and its successor asks.
 
 The "interactive default" column is what an unmappable answer resolves to in a normal run (SKILL.md principle 8), not merely what fast mode does. The two columns agree on purpose: fast mode is the interactive default with the asking removed. If you change one, change the other.
 
