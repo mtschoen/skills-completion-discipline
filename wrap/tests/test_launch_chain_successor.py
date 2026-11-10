@@ -315,7 +315,11 @@ RESUME_PROMPT_TEMPLATE = (
     "besides this resume prompt makes it attended, unless that message says the "
     "owner is leaving or not to wait, which makes it unattended. When it is "
     "attended, ask owner questions one per turn through the "
-    "question widget. When the wrap nudge fires and you "
+    "question widget. Copy auto_through from the handoff header into your own "
+    "handoff unchanged unless the owner changes it. When the header carries "
+    "estimated_links_remaining and this session is attended, ask the link budget "
+    "question from the wrap skill chain reference before other work. "
+    "When the wrap nudge fires and you "
     "reach a natural stopping point, or the owner asks, wrap and continue the chain "
     "as link {future_link}."
 )
