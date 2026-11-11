@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Notes</title>
+  <style>
+    body { font-family: sans-serif; background: #fff; color: #111; }
+    body.dark { background: #111; color: #eee; }
+  </style>
+</head>
+<body>
+  <h1>Notes</h1>
+  <button id="theme-toggle" type="button">Toggle theme</button>
+  <p>Pick a theme with the button above.</p>
+  <script>
+    var toggle = document.getElementById('theme-toggle');
+    toggle.addEventListener('click', function () {
+      document.body.classList.toggle('dark');
+    });
+  </script>
+</body>
+</html>
