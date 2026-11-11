@@ -24,7 +24,7 @@ mvn compile                     # Java/Maven
 npm run dev    # or yarn dev, pnpm dev
 ```
 
-**Bar:** Open the browser and check that the change works visually. If you can't open a browser, check the dev server console for runtime errors and verify the component renders by checking the dev server output. Be explicit about what you checked and what you couldn't check - say "I verified the server starts and there are no console errors, but I can't visually confirm the layout change; please check in the browser."
+**Bar:** Drive the page headlessly (Playwright or another headless browser): load the changed route, exercise the changed interaction, then check the resulting DOM and a screenshot, plus the browser console for runtime errors. Report what you observed. Judging taste or layout polish is a human seam; everything up to it is the agent's job.
 
 ## Web backend (Node, Python, .NET API, etc.)
 
@@ -36,6 +36,12 @@ npm run dev    # or yarn dev, pnpm dev
 curl -s http://localhost:3000/api/your-endpoint | head -20
 ```
 
+## Desktop GUI (WinUI, MAUI, WPF, Win32)
+
+**Floor:** Build the app and launch it.
+
+**Bar:** Drive the window yourself with UI Automation, synthetic input and window screenshots, following the `fixing-desktop-ui-bugs` skill. Redirect the app's state to a temporary location. Stop only the process identity this run started (the PID or handle from the launch), never every process with the same image name. What remains is a firm seam only if it needs a physical display or an unattended elevation prompt.
+
 ## Unity projects
 
 **Floor:** Run a batch-mode compile. This catches script errors without needing the Editor open.
@@ -44,7 +50,7 @@ curl -s http://localhost:3000/api/your-endpoint | head -20
 Unity -batchmode -nographics -projectPath . -logFile - -quit
 ```
 
-**Bar:** If the change affects gameplay or scene behavior, note what needs manual testing in the Editor and tell the user what to check. Don't claim the behavior works if you can only verify compilation.
+**Bar:** If the change affects gameplay or scene behavior, drive the scene yourself with an Editor test run or play-mode script in batch mode and capture the result. Don't claim the behavior works if you can only verify compilation; name the exact part that needs a headset or a human eye.
 
 ## Scripts and CLI tools
 
@@ -62,7 +68,7 @@ terraform validate              # Terraform
 yamllint .github/workflows/     # GitHub Actions
 ```
 
-**Bar:** If possible, do a dry run. `terraform plan`, `docker compose build`, etc. If not possible, say what you validated and what needs to be tested in the real environment.
+**Bar:** If possible, do a dry run. `terraform plan`, `docker compose build`, etc. If not possible, say what you validated and name the exact remaining step in the real environment, with its owner.
 
 ## Test-only changes
 
