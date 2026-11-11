@@ -89,6 +89,14 @@ jobs:
       - name: machine-maintenance pytest
         working-directory: machine-maintenance
         run: pytest tests/
+      - name: smoke-test
+        working-directory: smoke-test
+        run: |
+          ruff check evals/ab/
+          ruff format --check evals/ab/
+      - name: smoke-test pytest
+        working-directory: smoke-test
+        run: pytest evals/ab/
 
   shellcheck:
     runs-on: ubuntu-latest

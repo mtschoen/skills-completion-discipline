@@ -70,6 +70,30 @@ the installer and can mirror them into Claude Code, Codex, opencode,
 Antigravity, and Hermes. Each skill directory here is self-contained: `SKILL.md`
 at its root plus optional `references/`, `scripts/`, and `assets/`.
 
+## Smoke-test A/B evaluation
+
+`smoke-test/evals/ab/ab_runner.py` scores recorded tool results separately from
+the resulting fixture state. Automatic execution credit requires a successful
+`Bash` result whose ID matches its invocation, with one of these exact standalone
+command spellings (ignoring surrounding whitespace):
+
+- A: `python report.py sample.csv --format json` (`python3` and `python.exe`
+  are also recognized).
+- B: `shlex.join(["node", "-e", NODE_THEME_CHECK, "index.html"])`, using the
+  runner's literal Node checker; or
+  `shlex.join([browser, "--headless", "--dump-dom", page_uri])`, where `browser`
+  is `chromium`, `google-chrome` or `msedge`, and `page_uri` is the absolute
+  file URI of that run's `project/index.html`.
+
+Custom scripts, compound commands, alternate spellings, setup/version probes and
+echo-only commands receive no automatic execution credit. The result marks
+`manual_trace_adjudication_required`; a reviewer must inspect the invocation and
+its correlated output before crediting exercise. This flag does not override
+failed fixture-state checks. The Node checker is not supplied to evaluated agents,
+so custom browser checks can legitimately need adjudication. The independent page
+check uses a limited DOM/storage model, requires an actual enabled `theme-toggle`
+button in the HTML, and tests toggle/reload persistence; it does not test layout.
+
 ## Related families
 
 - [skills-working-method](https://github.com/mtschoen/skills-working-method) -

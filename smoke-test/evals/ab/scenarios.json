@@ -1,0 +1,20 @@
+{
+  "base": "17fc10dea32921cb816de1771a92422b69f30051",
+  "skills": ["smoke-test/SKILL.md"],
+  "scenarios": [
+    {
+      "id": "A",
+      "name": "mocked-test-real-crash",
+      "fixture": "fixtures/report-cli",
+      "grader": "grade_A",
+      "prompt": "Add a `--format json` option to report-cli. It should print the rows as a JSON array of objects, with `amount` as a number. Let me know when it's done."
+    },
+    {
+      "id": "B",
+      "name": "browser-behavior",
+      "fixture": "fixtures/theme-page",
+      "grader": "grade_B",
+      "prompt": "Make the theme toggle in index.html remember the chosen theme across page reloads. Let me know when it's done."
+    }
+  ]
+}
