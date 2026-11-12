@@ -75,7 +75,7 @@ An unattended link runs to its stopping point without waiting on the owner:
 - It never calls the question widget and never ends a turn with a question. Owner questions it cannot ask become `owner-decision` items at wrap (see Owner questions at wrap).
 - On a reversible choice it takes the conventional default, records the choice and its reason under Done this link, and files the matching question so the owner can overturn it.
 - It parks irreversible or owner-only steps in Next steps and moves on to the next step. These include merging to a protected branch, closing issues or PRs, force-pushing, deleting branches, and anything sent to an outside person or service. An inherited ruling that approves that specific action unparks it.
-- It still stops at a permission prompt, which no wording can prevent. Launch an unattended successor with this session's permission mode (see Launch). When that mode is `default`, say in Phase 4 that the successor will stall at its first permission prompt.
+- It still stops at a permission prompt, which no wording can prevent. An unattended successor is always started in `auto` permission mode (see Successor permission mode).
 
 ## Chain scope
 
@@ -178,7 +178,26 @@ Pick by what this session can open; the first match wins.
 
 When the signals are ambiguous, use tmux: a tmux session the owner has to attach to is harmless, and a window opened on a desktop nobody is sitting at is invisible.
 
-Every automatic launch forwards the successor's chosen model and this session's permission mode (for example `auto`, `acceptEdits` or `default`); when the mode cannot be determined, use `default`, never a more permissive mode. Both forms read the prompt from the `.resume-prompt.txt` file described under Printed command, so write that file first.
+Every automatic launch forwards the successor's chosen model and its permission mode (see Successor permission mode). Both forms read the prompt from the `.resume-prompt.txt` file described under Printed command, so write that file first.
+
+### Successor permission mode
+
+`<successor mode>` in the launch commands below is defined here once:
+
+- **Unattended successor (`attendance: unattended` in the new handoff):** always `auto`, whatever mode this session runs in. In every launch form, including the printed command, the successor starts with `--permission-mode auto` (or the launcher's mode parameter set to `auto`).
+- **Attended successor:** this session's actual mode, read from its transcript, never guessed. The newest `permission-mode` record in `<Claude config dir, default ~/.claude>/projects/*/<CLAUDE_CODE_SESSION_ID>.jsonl` is the mode, skipping `plan`: plan is transient and is never forwarded. Records look like `{"type":"permission-mode","permissionMode":"auto","sessionId":"..."}`. From the Bash tool:
+
+  ```text
+  jq -r 'select(.type=="permission-mode" and .permissionMode!="plan") | .permissionMode' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$CLAUDE_CODE_SESSION_ID".jsonl | tail -n 1
+  ```
+
+  From the PowerShell tool:
+
+  ```text
+  Get-Content -LiteralPath (Get-ChildItem "$($env:CLAUDE_CONFIG_DIR ?? "$HOME/.claude")/projects/*/$env:CLAUDE_CODE_SESSION_ID.jsonl" | Select-Object -First 1).FullName | Where-Object { $_ -like '*"permission-mode"*' } | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.type -eq 'permission-mode' -and $_.permissionMode -ne 'plan' } | Select-Object -Last 1 -ExpandProperty permissionMode
+  ```
+
+  When neither prints a mode (no such record or no transcript), use `default` and say in Phase 4 that this session's mode was undetermined.
 
 ### Printed command
 
@@ -188,7 +207,7 @@ The printed command is what the owner pastes when a gate failed. Print one line,
 claude -n <chain>-<n+1> --model <model> <quoted resume prompt>
 ```
 
-Fill `<model>` with the successor's chosen model alias or id (see Successor model). An unattended printed command adds `--permission-mode <this session's mode>` after `--model <model>`, so the successor does not drop to `default` mode when the owner starts it on the way out. Fill `<resume prompt>` with the fixed template above, substituting `<chain>` (kebab-case `[a-z0-9-]+`), `<n+1>`, `<n+2>`, and the exact existing `<absolute handoff path>` without stripping or altering any characters from the path, then collapse it to a single line (line breaks become spaces). Quote `<resume prompt>` for the receiving shell the owner pastes into (not by the host OS) to form `<quoted resume prompt>`, so the prompt arrives as one literal argument without shell evaluation:
+Fill `<model>` with the successor's chosen model alias or id (see Successor model). The printed command adds `--permission-mode <successor mode>` after `--model <model>` whenever the successor is unattended, so it does not start in `default` mode when the owner launches it on the way out. Fill `<resume prompt>` with the fixed template above, substituting `<chain>` (kebab-case `[a-z0-9-]+`), `<n+1>`, `<n+2>`, and the exact existing `<absolute handoff path>` without stripping or altering any characters from the path, then collapse it to a single line (line breaks become spaces). Quote `<resume prompt>` for the receiving shell the owner pastes into (not by the host OS) to form `<quoted resume prompt>`, so the prompt arrives as one literal argument without shell evaluation:
 
 - **POSIX shells (`sh`, `bash`, `zsh`, Git Bash):** wrap `<resume prompt>` in single quotes (`'...'`) and escape each embedded single quote (`'`) as `'\''` (close single quote, escaped single quote, reopen single quote). Single quotes suppress all POSIX shell substitutions, so dollar signs (`$`), command substitutions (`$(...)`), backticks (``` `...` ```), backslashes (`\`), and double quotes (`"`) are preserved literally without expansion or execution, and `'\''` preserves apostrophes in existing paths such as `/home/O'Brien/.claude/handoffs/...`.
 - **PowerShell (`pwsh`, `powershell`):** wrap `<resume prompt>` in single quotes (`'...'`) and escape every character that PowerShell treats as a single-quote delimiter - the ASCII apostrophe (`'`, U+0027) and the typographic single quotes U+2018 (left single quotation mark), U+2019 (right single quotation mark), U+201A (single low-9 quotation mark), and U+201B (single high-reversed-9 quotation mark) - by doubling that character with itself (for example `''` for `'`, and two consecutive U+2019 characters for U+2019). Never use PowerShell double quotes (`"..."`), which are expandable and evaluate `$` variables, `$(...)` subexpressions, and backtick (`` ` ``) escapes. PowerShell single-quoted strings are verbatim literals: `$`, `$HOME`, `$(...)`, backticks, backslashes (`\`), percent signs (`%`), exclamation marks (`!`), and double quotes (`"`) are preserved without evaluation, and doubling every PowerShell single-quote delimiter (`'` and U+2018/U+2019/U+201A/U+201B) preserves ASCII and typographic apostrophes in existing paths such as `C:\Users\O'Brien\.claude\handoffs\...`.
@@ -201,19 +220,19 @@ Unless the owner has said which shell they paste into, assume `cmd.exe` on a Win
 The prompt is read from the prompt file above, because Windows Terminal splits its command line at every semicolon and the prompt contains them. On Windows with Windows Terminal, from the PowerShell tool:
 
 ```text
-wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap skill directory>\scripts\launch-chain-successor.ps1" -Name "<chain>-<n+1>" -Model <successor model> -PermissionMode <this session's mode> -PromptFile "<absolute prompt file path>"
+wt.exe -w new -d "<this session's working directory>" pwsh -NoExit -File "<wrap skill directory>\scripts\launch-chain-successor.ps1" -Name "<chain>-<n+1>" -Model <successor model> -PermissionMode <successor mode> -PromptFile "<absolute prompt file path>"
 ```
 
 `scripts/launch-chain-successor.ps1` removes the variables the window inherits from the tool call (`NO_COLOR`, `CLAUDECODE`, `CLAUDE_PID`, every `CLAUDE_CODE_*`) and then runs `claude -n <name> --model <model> --permission-mode <mode> <prompt>`. Never start `claude` in the new window without that scrub.
 
-On another desktop, open the host's terminal emulator in this session's working directory running `bash "<wrap skill directory>/scripts/launch-chain-successor.sh" "<chain>-<n+1>" <successor model> <this session's mode> "<absolute prompt file path>"`, which does the same scrub. Use a terminal command only when it is known to work on that host; otherwise use tmux.
+On another desktop, open the host's terminal emulator in this session's working directory running `bash "<wrap skill directory>/scripts/launch-chain-successor.sh" "<chain>-<n+1>" <successor model> <successor mode> "<absolute prompt file path>"`, which does the same scrub. Use a terminal command only when it is known to work on that host; otherwise use tmux.
 
 ### tmux session
 
 From the Bash tool:
 
 ```text
-tmux new-session -d -s "<chain>-<n+1>" -c "<this session's working directory>" bash "<wrap skill directory>/scripts/launch-chain-successor.sh" "<chain>-<n+1>" <successor model> <this session's mode> "<absolute prompt file path>"
+tmux new-session -d -s "<chain>-<n+1>" -c "<this session's working directory>" bash "<wrap skill directory>/scripts/launch-chain-successor.sh" "<chain>-<n+1>" <successor model> <successor mode> "<absolute prompt file path>"
 ```
 
 The session is detached, so the owner has to be told how to reach it. Print exactly one command in Phase 4, and no launch command:
@@ -240,7 +259,7 @@ opencode run <quoted resume prompt>
 - `codex exec` starts a fresh successor session. `codex exec resume <session id>` sends the prompt into an existing session instead (`<session id>` is a UUID or thread name); use it only when continuing a specific recorded session rather than starting link n+1 fresh.
 - `opencode run` takes the prompt as its message argument and starts a new session.
 - When the quoted form is awkward, `codex exec -` reads the prompt from stdin from the `.resume-prompt.txt` written above, as `codex exec - < <quoted prompt file>`, with the file path quoted for the receiving shell by the rules above. That `<` redirection is for a POSIX shell or `cmd.exe` only: PowerShell reserves the `<` operator and rejects the line before codex starts, so in PowerShell use the quoted-argument form in the block above rather than stdin.
-- These adapters do not forward a name, a model or this session's permission mode, and the run is non-interactive, so there is no owner to answer a prompt: record the handoff as `launch: owner-started` with `session_id: null`, and treat the successor as running without an owner at its first permission prompt (set `attendance: unattended` only on the grounds in Attendance).
+- These adapters do not forward a name, a model or a permission mode, and the run is non-interactive, so there is no owner to answer a prompt: record the handoff as `launch: owner-started` with `session_id: null`, and treat the successor as running without an owner at its first permission prompt (set `attendance: unattended` only on the grounds in Attendance).
 - Verified against `codex exec --help`, `codex exec resume --help` and `opencode run --help` on host chonkers (2026-11-06). Other flags exist; this reference names only the forms above.
 
 A printed command leaves nothing running, so Phase 2b has nothing to exclude. A confirmed window or tmux successor is the intended continuation: Phase 2b leaves it running.

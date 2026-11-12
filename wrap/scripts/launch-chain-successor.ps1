@@ -5,7 +5,7 @@
 .DESCRIPTION
     Runs inside the new terminal window that chain mode opens (see references/chain.md). It removes the
     variables the window inherited from the launching session's tool environment, then starts Claude Code
-    with the launching session's model and permission mode and the resume prompt read from a file.
+    with the chosen model and permission mode and the resume prompt read from a file.
 
     The scrub is required. A tool call's environment carries NO_COLOR=1 (the successor would render
     without colors) and the launching session's CLAUDE_CODE_* identity (the successor would not register
@@ -15,11 +15,11 @@
     Session name for the successor (`claude -n`).
 
 .PARAMETER Model
-    Model alias or id the launching session runs on (`claude --model`). Mandatory, so the successor never
+    Model alias or id the successor runs on (`claude --model`). Mandatory, so the successor never
     falls back to the settings default model.
 
 .PARAMETER PermissionMode
-    Permission mode the launching session runs in (`claude --permission-mode`).
+    Permission mode the successor starts in (`claude --permission-mode`); `auto` for an unattended successor.
 
 .PARAMETER PromptFile
     Path of the file holding the resume prompt.
