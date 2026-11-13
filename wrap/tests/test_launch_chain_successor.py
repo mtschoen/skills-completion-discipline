@@ -417,6 +417,7 @@ def format_printed_launch_command(
     model: str,
     handoff_path: str,
     receiving_shell: str = "posix",
+    permission_mode: str = "auto",
 ) -> tuple[str, str]:
     """Formats the collapsed resume prompt and the launch command for the receiving shell."""
     if receiving_shell not in RECEIVING_SHELL_QUOTERS:
@@ -430,7 +431,10 @@ def format_printed_launch_command(
     )
     collapsed_prompt = " ".join(prompt.split())
     quoted_prompt = quote_argument(collapsed_prompt)
-    command = f"claude -n {chain_name}-{next_link} --model {model} {quoted_prompt}"
+    command = (
+        f"claude -n {chain_name}-{next_link} --model {model} "
+        f"--permission-mode {permission_mode} {quoted_prompt}"
+    )
     return collapsed_prompt, command
 
 
@@ -555,6 +559,8 @@ def test_printed_command_posix_quoting_round_trip(
             "settle-and-cure-2",
             "--model",
             "opus",
+            "--permission-mode",
+            "auto",
             collapsed_prompt,
         ]
         assert invoked_arguments == expected_arguments, (
@@ -945,6 +951,8 @@ def test_printed_command_windows_quoting_round_trip(
             "settle-and-cure-2",
             "--model",
             "opus",
+            "--permission-mode",
+            "auto",
             collapsed_prompt,
         ]
 
