@@ -314,8 +314,10 @@ RESUME_PROMPT_TEMPLATE = (
     "blocked once only parked steps remain. Any owner message in this session "
     "besides this resume prompt makes it attended, unless that message says the "
     "owner is leaving or not to wait, which makes it unattended. When it is "
-    "attended, ask owner questions one per turn through the "
-    "question widget. Copy auto_through from the handoff header into your own "
+    "attended, ask owner questions one per turn in plain chat: give the context and "
+    "end the turn on one plain question. Use the question widget only for a short pick "
+    "with nothing above it to read, and keep every string in it to one sentence. "
+    "Copy auto_through from the handoff header into your own "
     "handoff unchanged unless the owner changes it. Ask the startup link budget "
     "question only when this session is attended, the predecessor records "
     "successor.launch: owner-started with successor.not_started_reason: link budget, "
@@ -610,7 +612,7 @@ successor:
 ## Inherited owner rulings (do not reopen)
 - None
 
-## Questions waiting for the owner (one per turn, through the question widget)
+## Questions waiting for the owner (one per turn, in plain chat)
 - Should the retry backoff cap at 30 seconds (conventional default) or 120 seconds?
 
 ## Next steps, in order

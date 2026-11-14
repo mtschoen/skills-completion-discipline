@@ -56,7 +56,7 @@ Include every required section, writing "None" where empty:
 
 - **Done this link:** at most ten one-line entries, each naming its forge or memory record ("None" where empty). This section is never carried into the next handoff.
 - **Inherited owner rulings (do not reopen):** only rulings that still constrain the next steps, one line each, tagged with the link that made it ("None" when none is live). A ruling about work still in flight is quoted verbatim, trimmed to its operative sentence. A standing-policy ruling (how to run things, what never to do) does not ride in the handoff: the first link that carries it records it in a memory note (or the repository's `AGENTS.md` when it is repository policy) and the handoff keeps a one-line pointer naming that record, only while the next steps depend on it. Drop a ruling once the work it governed is complete and its record exists on the forge or in memory, naming that record under "Done this link". Drop a one-time answer in the link that carries it out. When the owner gives the same answer again (for example granting the same permission-mode switch), update the existing line's link tag; never add a second line.
-- **Questions waiting for the owner (one per turn, through the question widget):** links to the `owner-decision` items filed for questions still open at wrap (see Owner questions at wrap); only the link-budget question may be written out here, since it belongs to the session chain
+- **Questions waiting for the owner (one per turn, in plain chat):** links to the `owner-decision` items filed for questions still open at wrap (see Owner questions at wrap); only the link-budget question may be written out here, since it belongs to the session chain
 - **Next steps, in order.** Every item must retain an explicit unchanged-carry count tag: `[carried: 0]` when newly introduced or when its scope is substantively modified; `[carried: <count + 1>]` when copied forward without material change from the predecessor handoff. An item carried unchanged for two links (`[carried: 2]`) reaches the limit: this link must either complete it (recorded in "Done this link"), convert it to a tracked forge issue, or drop it with a stated reason in the handoff; it cannot ride a third time (`[carried: 3]` is prohibited). Before deleting the predecessor handoff, the successor must inspect the predecessor's tags, update unchanged items to `[carried: <count + 1>]` (or `[carried: 0]` if substantively modified), enforce retirement on any item that reached the two-link limit, and verify that all carried items in the new handoff comply with the limit.
 - **How to run the lanes:** only what this link learned or what differs from the lane recipes already recorded; stable invocations live in a memory note or skill and are named, not copied
 - **Worktrees and in-flight work (PRs, background jobs)**
@@ -89,7 +89,7 @@ Sweeps and audits file unrelated or new-scope findings, and any findings after t
 
 ## Owner questions at wrap
 
-A question still open when the link ends becomes an `owner-decision` issue on the forge of the right repo, created with the label in the creation request and carrying the decision context and the recommended answer. The handoff section lists the links instead of holding the question. Attended sessions still ask one question per turn through the widget; this covers only what is open at wrap.
+A question still open when the link ends becomes an `owner-decision` issue on the forge of the right repo, created with the label in the creation request and carrying the decision context and the recommended answer. The handoff section lists the links instead of holding the question. Attended sessions still ask one question per turn in plain chat: give the context and end the turn on one plain question. Use the widget only for a short pick with nothing above it to read, and keep every string in it to one sentence. The filing rule here covers only what is open at wrap.
 
 Announce an end or a re-scope with the w plus chain mode announcement before Phase 1, naming the old chain, the new one and the reason, and repeat it in Phase 4. An attended link proposes the new name in that announcement, and the owner can rename it. An unattended link never re-scopes on its own, because re-scoping restarts the link budget: it keeps the chain name and files the proposed re-scope as an `owner-decision` item. Ending a chain whose goal is met (`done`) needs no owner.
 
@@ -138,8 +138,9 @@ it, park irreversible or owner-only steps and move on, and wrap with status
 blocked once only parked steps remain. Any owner message in this session
 besides this resume prompt makes it attended, unless that message says the
 owner is leaving or not to wait, which makes it unattended. When it is
-attended, ask owner questions one per turn through the
-question widget. Copy auto_through from the handoff header into your own
+attended, ask owner questions one per turn in plain chat: give the context and
+end the turn on one plain question. Use the question widget only for a short pick
+with nothing above it to read, and keep every string in it to one sentence. Copy auto_through from the handoff header into your own
 handoff unchanged unless the owner changes it. Ask the startup link budget
 question only when this session is attended, the predecessor records
 successor.launch: owner-started with successor.not_started_reason: link budget,
