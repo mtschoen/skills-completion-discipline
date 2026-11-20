@@ -89,7 +89,7 @@ Sweeps and audits file unrelated or new-scope findings, and any findings after t
 
 ## Owner questions at wrap
 
-A question still open when the link ends becomes an `owner-decision` issue on the forge of the right repo, created with the label in the creation request and carrying the decision context and the recommended answer. The handoff section lists the links instead of holding the question. Attended sessions still ask one question per turn in plain chat: give the context and end the turn on one plain question. Use the widget only for a short pick with nothing above it to read, and keep every string in it to one sentence. The filing rule here covers only what is open at wrap.
+A question still open when the link ends becomes an `owner-decision` issue on the forge of the right repo, created with the label in the creation request and carrying the decision context and the recommended answer. The handoff section lists the links instead of holding the question. Attended sessions still ask one question per turn: give the context in a message that ends the turn on one plain question. Use the question widget, if available and permitted, for a pick among 2 to 4 options, every string in it one sentence: at once when one sentence carries the whole question, otherwise in the turn after the context message when the owner's reply did not answer. Never call it after mid-turn prose the owner must read. Otherwise re-ask in prose once, then take the stated default if the second reply still does not answer. The filing rule here covers only what is open at wrap.
 
 Announce an end or a re-scope with the w plus chain mode announcement before Phase 1, naming the old chain, the new one and the reason, and repeat it in Phase 4. An attended link proposes the new name in that announcement, and the owner can rename it. An unattended link never re-scopes on its own, because re-scoping restarts the link budget: it keeps the chain name and files the proposed re-scope as an `owner-decision` item. Ending a chain whose goal is met (`done`) needs no owner.
 
@@ -138,9 +138,14 @@ it, park irreversible or owner-only steps and move on, and wrap with status
 blocked once only parked steps remain. Any owner message in this session
 besides this resume prompt makes it attended, unless that message says the
 owner is leaving or not to wait, which makes it unattended. When it is
-attended, ask owner questions one per turn in plain chat: give the context and
-end the turn on one plain question. Use the question widget only for a short pick
-with nothing above it to read, and keep every string in it to one sentence. Copy auto_through from the handoff header into your own
+attended, ask owner questions one per turn: give the context in a message that
+ends the turn on one plain question. Use the question widget, if available and
+permitted, for a pick among 2 to 4 options, every string in it one sentence: at
+once when one sentence carries the whole question, otherwise in the turn after
+the context message when the reply did not answer. Never call it after mid-turn
+prose the owner must read. Otherwise re-ask in prose once, then take the stated
+default if the second reply still does not answer.
+Copy auto_through from the handoff header into your own
 handoff unchanged unless the owner changes it. Ask the startup link budget
 question only when this session is attended, the predecessor records
 successor.launch: owner-started with successor.not_started_reason: link budget,
