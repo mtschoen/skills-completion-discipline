@@ -206,7 +206,7 @@ function Invoke-ReposAudit {
     $tempGitDirs = [System.Collections.Generic.List[string]]::new()
     if (Test-Path -LiteralPath $tempRoot) {
         foreach ($td in @(Get-ChildItem -LiteralPath $tempRoot -Directory -ErrorAction SilentlyContinue)) {
-            if (Test-Path -LiteralPath (Join-Path $td.FullName '.git')) {
+            if (Test-Path -LiteralPath (Join-Path $td.FullName '.git') -ErrorAction SilentlyContinue) {
                 $tempGitDirs.Add($td.FullName)
             }
         }

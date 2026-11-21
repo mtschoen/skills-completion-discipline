@@ -177,6 +177,41 @@ def test_repo_roots_default_to_home_only_when_not_supplied(tmp_path: Path) -> No
     assert [item["path"] for item in findings] == [str(worktree)]
 
 
+def test_locked_temp_directory_does_not_abort_repos_section(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    local_app_data = tmp_path / "local"
+    temp_root = local_app_data / "Temp"
+    locked = temp_root / "locked"
+    stray = temp_root / "stray"
+    (locked / ".git").mkdir(parents=True)
+    (stray / ".git").mkdir(parents=True)
+    identity = os.environ["USERNAME"]
+    subprocess.run(
+        ["icacls", str(locked), "/deny", f"{identity}:(OI)(CI)(RD,X,RA)"],
+        check=True,
+        capture_output=True,
+        timeout=PROCESS_TIMEOUT,
+    )
+    try:
+        result = _run_audit(
+            tmp_path / "out", home, local_app_data, sections=("repos",)
+        )
+    finally:
+        subprocess.run(
+            ["icacls", str(locked), "/remove:d", identity],
+            check=True,
+            capture_output=True,
+            timeout=PROCESS_TIMEOUT,
+        )
+
+    assert result.returncode == 0, result.stderr
+    raw = json.loads(
+        (tmp_path / "out" / "raw" / "repos.json").read_text(encoding="utf-8-sig")
+    )
+    assert raw["temp_git_dir_count"] == 1
+
+
 HELPER_PROBE = r"""
 Set-StrictMode -Version Latest
 . $env:MM_HELPERS
