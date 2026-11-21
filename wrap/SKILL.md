@@ -220,7 +220,7 @@ After review, ask one approval question per repo (or combine small repos). In th
 
 Critical: destructive actions in 3c gate on 3a + 3b having completed successfully for this repo. If memory offload or plans sweep failed or was cancelled, skip 3c's destructive items too (still show the read-only summary in the final report).
 
-**3d. Commit + push decision (orchestrator).**
+#### 3d. Commit and push decision (orchestrator)
 
 This sub-phase produces **two separate commits** (at most) per repo, in this order: first wrap's own edits auto-commit, then the user-work prompt runs. Never combine them - they must be distinguishable in git history.
 
