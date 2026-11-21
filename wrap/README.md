@@ -22,7 +22,9 @@ Non-goals, all deliberate:
 
 Stable, pressure-tested through Run 9b across 21 scenarios (18 headless-capable scenarios re-baselined in the clean room, scenario 10 verified in installed mode, scenarios 7 and 8 remain manual-only). No safety violations in any run.
 
-As of 2026-08-05 the skill asks through the harness's structured question tool (`AskUserQuestion` or equivalent) in interactive sessions, and falls back to lettered prose questions with stated defaults everywhere else - harnesses without such a tool, headless runs, and evals (which disallow the tool explicitly). The prose fallback is the mechanism every headless-capable scenario was re-baselined against on 2026-08-05 (Runs 8, 9 and 9b), all in a **clean room** - wrap alone, without the operator's own hooks, skills, MCP servers or memory files, which is how a third party gets it. A no-skill control ran alongside, to separate what the skill does from what the model does unaided. `tests/run-audit.sh` makes both repeatable. See `AUDIT.md` for full results and the open list.
+Interactive wrap gates open in the harness's question tool when available and permitted: one short question, with the items and actions visible in 2 to 4 options. If the decision will not fit, wrap gives the full context and ends the turn on a prose question. Headless runs and evals use the prose protocol.
+
+The 2026-08-05 audits (Runs 8, 9 and 9b) exercised the prose protocol in a **clean room**: wrap alone, without the operator's hooks, skills, MCP servers or memory files. A no-skill control ran alongside. `tests/run-audit.sh` makes both repeatable. See `AUDIT.md` for results and open scenarios.
 
 This skill is part of the completion suite: `maintaining-full-coverage`, `smoke-test`, `docs-update`, `escalate-over-shortcut`, and `wrap`. Suite skills install separately (each lives in its own repo) but are designed to be installed together, and they reference each other directly. Each works standalone; treat cross-references to missing suite members as optional.
 

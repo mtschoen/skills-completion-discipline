@@ -313,14 +313,17 @@ RESUME_PROMPT_TEMPLATE = (
     "it, park irreversible or owner-only steps and move on, and wrap with status "
     "blocked once only parked steps remain. Any owner message in this session "
     "besides this resume prompt makes it attended, unless that message says the "
-    "owner is leaving or not to wait, which makes it unattended. When it is "
-    "attended, ask owner questions one per turn: give the context in a message that "
-    "ends the turn on one plain question. Use the question widget, if available and "
-    "permitted, for a pick among 2 to 4 options, every string in it one sentence: at "
-    "once when one sentence carries the whole question, otherwise in the turn after "
-    "the context message when the reply did not answer. Never call it after mid-turn "
-    "prose the owner must read. Otherwise re-ask in prose once, then take the stated "
-    "default if the second reply still does not answer. "
+    "owner is leaving or not to wait, which makes it unattended. "
+    "When attended, ask one question per call and one gate per turn. Use the widget first if "
+    "available and permitted: put the summary in the question and the items in "
+    "2 to 4 options, each string one short sentence. If the full decision will "
+    "not fit or the widget is unavailable or disallowed, give the context and "
+    "end the turn on one plain question. If a widget opens the gate and returns no "
+    "decision, never retry the widget; re-ask once in prose only for a destructive gate. "
+    "If a prose opener gets no decision, re-ask the short choice once in the widget "
+    "if available and permitted, otherwise in prose. When no re-ask applies or the "
+    "re-ask yields no decision, take the stated non-destructive default and announce it in one line. "
+    "Never write mid-turn prose the owner must read before a tool call. "
     "Copy auto_through from the handoff header into your own "
     "handoff unchanged unless the owner changes it. Ask the startup link budget "
     "question only when this session is attended, the predecessor records "
@@ -817,6 +820,21 @@ def test_resume_prompt_template_has_no_quote_characters() -> None:
     ):
         with pytest.raises(ValueError):
             quote_cmd_argument(unsafe_cmd_fragment)
+
+
+def test_attended_no_answer_rule_survives_handoff() -> None:
+    skill = (CHAIN_REFERENCE_PATH.parents[1] / "SKILL.md").read_text(encoding="utf-8")
+    rule = next(
+        line.strip()
+        for line in skill.splitlines()
+        if line.strip().startswith("If a widget opens the gate")
+    )
+    reference = CHAIN_REFERENCE_PATH.read_text(encoding="utf-8")
+    owner_questions = reference.split("## Owner questions at wrap\n", 1)[1].split(
+        "\n## ", 1
+    )[0]
+    for instructions in (owner_questions, read_resume_prompt_template_from_reference()):
+        assert rule in " ".join(instructions.split())
 
 
 @pytest.mark.parametrize(
